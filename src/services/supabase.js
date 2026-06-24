@@ -221,3 +221,12 @@ export async function rechazarSolicitud(id, motivo = '') {
     .eq('id', id);
   if (error) throw error;
 }
+
+export async function getAllSolicitudes() {
+  const { data, error } = await supabase
+    .from('solicitudes')
+    .select('*')
+    .order('fecha_recepcion', { ascending: false });
+  if (error) throw error;
+  return data || [];
+}
