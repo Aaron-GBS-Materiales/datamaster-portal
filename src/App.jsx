@@ -47,13 +47,15 @@ function AppShell() {
       { id:'baseDatos',        icon:'💾', label:'Base de Datos' },
       { id:'usuarios',         icon:'👥', label:'Usuarios' },
     ];
-  } else if (user?.rol === 'GESTOR DE INVENTARIO') {
+ javascript  } else if (user?.rol === 'GESTOR DE INVENTARIO') {
     navItems = [
       { id:'gestorInventario', icon:'📦', label:'Inventario' },
+      { id:'misRevisiones', icon:'📋', label:'Mi historial' },
     ];
   } else if (user?.rol === 'LIDER DE CATEGORÍA') {
     navItems = [
       { id:'liderCategoria', icon:'✓', label:'Aprobaciones' },
+      { id:'misAprobaciones', icon:'📋', label:'Mi historial' },
     ];
   } else {
     navItems = [
