@@ -36,7 +36,6 @@ async function load() {
     } else if (isAdmin) {
       data = await getSolicitudesPorPaso(5);
     } else {
-      // Solicitante ve sus propias solicitudes
       const paso1 = await getSolicitudesPorPaso(1);
       const paso2 = await getSolicitudesPorPaso(2);
       const paso3 = await getSolicitudesPorPaso(3);
@@ -45,7 +44,12 @@ async function load() {
       data = [...paso1, ...paso2, ...paso3, ...paso4, ...paso5].filter(s => s.email_solicitante === user?.email);
     }
     
-    setSolicitudes(data);
+    const dataConPosiciones = await Promise.all(data.map(async (sol) => {
+      const pos = await getPosicionesBySolicitud(sol.id);
+      return {...sol, posiciones: pos};
+    }));
+    
+    setSolicitudes(dataConPosiciones);
   } catch {}
   setLoading(false);
 }
@@ -122,7 +126,7 @@ async function handleVerDetalle(id) {
               <tbody>
                 {solicitudes.map(sol => (
                   <tr key={sol.id}>
-                    <td style={{...s.td, fontFamily:'monospace', color:'#2563eb', fontWeight:600}}>{sol.ticket_id}</td>
+                    <td style={{...s.td, maxWidth:150, overflow:'hidden', textOverflow:'ellipsis'}} title={sol.posiciones?.[0]?.denominacion || '—'}>{sol.posiciones?.[0]?.denominacion || '—'}</td>
                     <td style={s.td}>{sol.nombre_solicitante}</td>
                     <td style={{...s.td, maxWidth:150, overflow:'hidden', textOverflow:'ellipsis'}} title={sol.denominacion}>{sol.denominacion}</td>
                     <td style={s.td}>{sol.tipo_material || '—'}</td>
