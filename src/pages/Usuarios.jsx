@@ -3,9 +3,35 @@ import { useState, useEffect } from 'react';
 import { getAllUsers, createUser, toggleUserActivo } from '../services/supabase';
 
 const PAISES   = ['Perú','Colombia','Chile','Ecuador','Bolivia'];
-const UNIDADES = ['Cemento','Energía','Concreto','Agregados','Corporativo'];
+const UNIDADES = [
+  'UNACEM CHILE',
+  'UNICON CHILE',
+  'PREANSA COLOMBIA',
+  'UNACEM ECUADOR',
+  'UNACEM PERU',
+  'INVECO',
+  'CELEPSA - TERMOCHILCA',
+  'DIGICEM',
+  'UNACEM GBS',
+  'GEA',
+  'DECOSA',
+  'INMA',
+  'CISC',
+  'PREANSA PERÚ',
+  'VIGIANDINA',
+  'UNACEM CORP',
+  'CALCEM DRAKE CEMENT',
+  'TEHACHAPI CEMENT'
+];
+const ROLES = [
+  'SOLICITANTE',
+  'GESTOR DE INVENTARIO',
+  'LIDER DE CATEGORÍA',
+  'DATA MASTER',
+  'ADMINISTRADOR'
+];
 const FLAG     = { Perú:'🇵🇪', Colombia:'🇨🇴', Chile:'🇨🇱', Ecuador:'🇪🇨', Bolivia:'🇧🇴' };
-const EMPTY    = { nombre:'', email:'', pais:'', unidadNegocio:'', rol:'Solicitante' };
+const EMPTY    = { nombre:'', email:'', pais:'', unidadNegocio:'', rol:'SOLICITANTE' };
 
 export default function Usuarios() {
   const [users, setUsers]     = useState([]);
@@ -81,8 +107,8 @@ export default function Usuarios() {
             <div style={s.field}>
               <label style={s.label}>Rol</label>
               <select style={s.select} value={form.rol} onChange={e=>set('rol',e.target.value)}>
-                <option value="Solicitante">Solicitante</option>
-                <option value="Admin">Admin (Data Master)</option>
+                <option value="">Seleccionar rol…</option>
+                {ROLES.map(r=><option key={r}>{r}</option>)}
               </select>
             </div>
           </div>
@@ -111,7 +137,9 @@ export default function Usuarios() {
                     <td style={s.td}>{FLAG[u.pais]||''} {u.pais}</td>
                     <td style={s.td}>{u.unidad_negocio}</td>
                     <td style={s.td}>
-                      <span style={u.rol==='Admin'?s.badgeAdmin:s.badgeSol}>{u.rol}</span>
+                      <span style={u.rol==='ADMINISTRADOR'?{...s.badgeAdmin}:u.rol==='DATA MASTER'?{...s.badgeDataMaster}:{...s.badgeSol}}>
+                        {u.rol}
+                      </span>
                     </td>
                     <td style={s.td}>
                       <button style={s.btnDes} onClick={()=>{toggleUserActivo(u.id,false);load();}}>Desactivar</button>
@@ -172,6 +200,7 @@ const s = {
   th:        { padding:'9px 14px', background:'#f5f6fa', fontSize:11, fontWeight:600, color:'#6b7280', textTransform:'uppercase', letterSpacing:'.6px', textAlign:'left', borderBottom:'1px solid #e2e5ef', whiteSpace:'nowrap' },
   td:        { padding:'11px 14px', fontSize:13, color:'#374151', borderBottom:'1px solid #f0f2f8' },
   badgeAdmin:{ fontSize:11, fontWeight:600, padding:'3px 9px', borderRadius:20, background:'#ede9fe', color:'#7c3aed', border:'1px solid #ddd6fe' },
+  badgeDataMaster:{ fontSize:11, fontWeight:600, padding:'3px 9px', borderRadius:20, background:'#dcfce7', color:'#15803d', border:'1px solid #86efac' },
   badgeSol:  { fontSize:11, fontWeight:600, padding:'3px 9px', borderRadius:20, background:'#eff4ff', color:'#2563eb', border:'1px solid #bfdbfe' },
   btnDes:    { padding:'5px 12px', background:'#fef2f2', color:'#dc2626', border:'1px solid #fecaca', borderRadius:7, fontSize:12, fontWeight:600, cursor:'pointer' },
   btnAct:    { padding:'5px 12px', background:'#f0fdf4', color:'#16a34a', border:'1px solid #bbf7d0', borderRadius:7, fontSize:12, fontWeight:600, cursor:'pointer' },
