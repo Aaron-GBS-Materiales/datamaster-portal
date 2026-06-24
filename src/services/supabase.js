@@ -230,3 +230,13 @@ export async function getAllSolicitudes() {
   if (error) throw error;
   return data || [];
 }
+
+export async function getSolicitudById(id) {
+  const { data, error } = await supabase
+    .from('solicitudes')
+    .select('*')
+    .eq('id', id)
+    .single();
+  if (error) throw error;
+  return data;
+}
