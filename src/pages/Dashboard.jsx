@@ -1,6 +1,6 @@
 // pages/Dashboard.jsx
 import { useState, useEffect } from 'react';
-import { getSolicitudesPorPaso, getAllSolicitudes } from '../services/supabase';
+import { getSolicitudesPorPaso, getSolicitudById } from '../services/supabase';
 import { useAuth } from '../context/AuthContext';
 
 const FLAG = { Perú:'🇵🇪', Colombia:'🇨🇴', Chile:'🇨🇱', Ecuador:'🇪🇨', Bolivia:'🇧🇴' };
@@ -9,6 +9,8 @@ export default function Dashboard({ soloMias }) {
   const { user } = useAuth();
   const [solicitudes, setSolicitudes] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [selected, setSelected] = useState(null);
+  const [detalle, setDetalle] = useState(null);
   const isAdmin = user?.rol === 'ADMINISTRADOR' || user?.rol === 'DATA MASTER';
   const isGestor = user?.rol === 'GESTOR DE INVENTARIO';
   const isLider = user?.rol === 'LIDER DE CATEGORÍA';
@@ -21,26 +23,31 @@ export default function Dashboard({ soloMias }) {
       let data = [];
       
       if (isGestor) {
-        // Gestor ve sus solicitudes procesadas (paso > 2)
         const paso2 = await getSolicitudesPorPaso(2);
         const paso3 = await getSolicitudesPorPaso(3);
         const paso4 = await getSolicitudesPorPaso(4);
         const paso5 = await getSolicitudesPorPaso(5);
         data = [...paso2, ...paso3, ...paso4, ...paso5].filter(s => s.unidad_negocio === 'UNACEM PERU');
       } else if (isLider) {
-        // Líder ve sus solicitudes procesadas (paso > 3)
         const paso3 = await getSolicitudesPorPaso(3);
         const paso4 = await getSolicitudesPorPaso(4);
         const paso5 = await getSolicitudesPorPaso(5);
         data = [...paso3, ...paso4, ...paso5];
-      } else {
-        // Admin ve solicitudes completadas (paso 5)
+      } else if (isAdmin) {
         data = await getSolicitudesPorPaso(5);
       }
       
       setSolicitudes(data);
     } catch {}
     setLoading(false);
+  }
+
+  async function handleVerDetalle(id) {
+    try {
+      const det = await getSolicitudById(id);
+      setDetalle(det);
+      setSelected(id);
+    } catch {}
   }
 
   const pendientes = solicitudes.filter(s => s.paso < 5);
@@ -66,7 +73,6 @@ export default function Dashboard({ soloMias }) {
 
   return (
     <div style={s.wrap}>
-      {/* KPIs */}
       <div style={s.kpiGrid}>
         <div style={s.kpiCard}>
           <div style={s.kpiLabel}>En proceso</div>
@@ -82,7 +88,6 @@ export default function Dashboard({ soloMias }) {
         </div>
       </div>
 
-      {/* TABLE */}
       <div style={s.card}>
         <div style={s.header}>
           <div>
@@ -100,7 +105,7 @@ export default function Dashboard({ soloMias }) {
             <table style={s.table}>
               <thead>
                 <tr>
-                  {['Ticket','Solicitante','Denominación','Tipo Material','Grupo','Estado','Paso','Fecha'].map(h=>
+                  {['Ticket','Solicitante','Denominación','Tipo Material','Grupo','Estado','Paso','Acción'].map(h=>
                     <th key={h} style={s.th}>{h}</th>
                   )}
                 </tr>
@@ -121,8 +126,10 @@ export default function Dashboard({ soloMias }) {
                     <td style={{...s.td, textAlign:'center', fontSize:12, fontWeight:600}}>
                       {sol.paso}
                     </td>
-                    <td style={{...s.td, fontSize:11, color:'#6b7280'}}>
-                      {sol.fecha_recepcion ? new Date(sol.fecha_recepcion).toLocaleDateString('es-PE') : '—'}
+                    <td style={s.td}>
+                      <button style={s.btnVer} onClick={() => handleVerDetalle(sol.id)}>
+                        Ver →
+                      </button>
                     </td>
                   </tr>
                 ))}
@@ -131,6 +138,86 @@ export default function Dashboard({ soloMias }) {
           </div>
         )}
       </div>
+
+      {/* MODAL DETALLE */}
+      {selected && detalle && (
+        <div style={s.modalBg} onClick={() => setSelected(null)}>
+          <div style={s.modal} onClick={e => e.stopPropagation()}>
+            <h3 style={s.mTitle}>Detalle de Solicitud</h3>
+            <p style={s.mSub}>{detalle.ticket_id}</p>
+
+            <div style={s.seccion}>
+              <div style={s.seccionTitle}>Solicitante</div>
+              <div style={s.grid2}>
+                <div>
+                  <div style={s.label}>Nombre</div>
+                  <div style={s.valor}>{detalle.nombre_solicitante}</div>
+                </div>
+                <div>
+                  <div style={s.label}>Correo</div>
+                  <div style={s.valor}>{detalle.email_solicitante}</div>
+                </div>
+              </div>
+            </div>
+
+            <div style={s.seccion}>
+              <div style={s.seccionTitle}>Material</div>
+              <div style={s.grid2}>
+                <div>
+                  <div style={s.label}>Denominación</div>
+                  <div style={s.valor}>{detalle.denominacion}</div>
+                </div>
+                <div>
+                  <div style={s.label}>Unidad de Medida</div>
+                  <div style={s.valor}>{detalle.unidad_medida}</div>
+                </div>
+              </div>
+              <div style={{marginTop: 12}}>
+                <div style={s.label}>Tipo de Material</div>
+                <div style={s.valor}>{detalle.tipo_material || '—'}</div>
+              </div>
+              <div style={{marginTop: 12}}>
+                <div style={s.label}>Grupo de Artículos</div>
+                <div style={s.valor}>{detalle.grupo_articulos || '—'}</div>
+              </div>
+            </div>
+
+            <div style={s.seccion}>
+              <div style={s.seccionTitle}>Especificaciones</div>
+              <div style={s.label}>Texto de Pedido</div>
+              <div style={{...s.valor, whiteSpace: 'pre-wrap', maxHeight: 150, overflow: 'auto'}}>
+                {detalle.texto_pedido}
+              </div>
+            </div>
+
+            <div style={s.seccion}>
+              <div style={s.seccionTitle}>Estado</div>
+              <div style={s.grid2}>
+                <div>
+                  <div style={s.label}>Estado</div>
+                  <div style={s.valor}>{detalle.estado}</div>
+                </div>
+                <div>
+                  <div style={s.label}>Paso</div>
+                  <div style={s.valor}>{detalle.paso}</div>
+                </div>
+              </div>
+              {detalle.cantidad_codigos && (
+                <div style={{marginTop: 12}}>
+                  <div style={s.label}>Código SAP Asignado</div>
+                  <div style={{...s.valor, fontFamily: 'monospace', fontSize: 16, fontWeight: 700, color: '#16a34a', background: '#f0fdf4', padding: 10, borderRadius: 6}}>
+                    {detalle.cantidad_codigos}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div style={{display: 'flex', justifyContent: 'flex-end', marginTop: 24}}>
+              <button style={s.btnCerrar} onClick={() => setSelected(null)}>Cerrar</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -150,4 +237,15 @@ const s = {
   table:      { width:'100%', borderCollapse:'collapse' },
   th:         { padding:'10px 14px', background:'#f5f6fa', fontSize:11, fontWeight:600, color:'#6b7280', textTransform:'uppercase', letterSpacing:'.6px', textAlign:'left', borderBottom:'1px solid #e2e5ef', whiteSpace:'nowrap' },
   td:         { padding:'11px 14px', fontSize:13, color:'#374151', borderBottom:'1px solid #f0f2f8' },
+  btnVer:     { padding:'5px 12px', background:'#eff4ff', color:'#2563eb', border:'1px solid #bfdbfe', borderRadius:7, fontSize:12, fontWeight:600, cursor:'pointer' },
+  modalBg:    { position:'fixed', inset:0, background:'rgba(0,0,0,.45)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:200, padding:24 },
+  modal:      { background:'#fff', borderRadius:16, padding:32, maxWidth:600, width:'100%', boxShadow:'0 24px 64px rgba(0,0,0,.2)', maxHeight:'90vh', overflow:'auto' },
+  mTitle:     { fontSize:18, fontWeight:800, color:'#0f1d3a', marginBottom:4 },
+  mSub:       { fontSize:13, color:'#6b7280', marginBottom:20 },
+  seccion:    { marginBottom:24, paddingBottom:24, borderBottom:'1px solid #e2e5ef' },
+  seccionTitle:{ fontSize:13, fontWeight:700, color:'#0f1d3a', marginBottom:12 },
+  grid2:      { display:'grid', gridTemplateColumns:'1fr 1fr', gap:16 },
+  label:      { fontSize:11, fontWeight:600, color:'#9ca3af', textTransform:'uppercase', letterSpacing:'.5px', marginBottom:5 },
+  valor:      { fontSize:13, color:'#111827' },
+  btnCerrar:  { padding:'10px 24px', background:'#2563eb', color:'#fff', border:'none', borderRadius:8, fontSize:14, fontWeight:700, cursor:'pointer' },
 };
