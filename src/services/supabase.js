@@ -277,3 +277,11 @@ export async function updatePosicion(id, datos) {
     .eq('id', id);
   if (error) throw error;
 }
+
+export async function actualizarPosicion(posicionId, datos) {
+  const { error } = await supabase
+    .from('posiciones')
+    .update(datos)
+    .eq('id', posicionId);
+  if (error) throw error;
+}
