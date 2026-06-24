@@ -17,30 +17,38 @@ export default function Dashboard({ soloMias }) {
 
   useEffect(() => { load(); }, []);
 
-  async function load() {
-    setLoading(true);
-    try {
-      let data = [];
-      
-      if (isGestor) {
-        const paso2 = await getSolicitudesPorPaso(2);
-        const paso3 = await getSolicitudesPorPaso(3);
-        const paso4 = await getSolicitudesPorPaso(4);
-        const paso5 = await getSolicitudesPorPaso(5);
-        data = [...paso2, ...paso3, ...paso4, ...paso5].filter(s => s.unidad_negocio === 'UNACEM PERU');
-      } else if (isLider) {
-        const paso3 = await getSolicitudesPorPaso(3);
-        const paso4 = await getSolicitudesPorPaso(4);
-        const paso5 = await getSolicitudesPorPaso(5);
-        data = [...paso3, ...paso4, ...paso5];
-      } else if (isAdmin) {
-        data = await getSolicitudesPorPaso(5);
-      }
-      
-      setSolicitudes(data);
-    } catch {}
-    setLoading(false);
-  }
+async function load() {
+  setLoading(true);
+  try {
+    let data = [];
+    
+    if (isGestor) {
+      const paso2 = await getSolicitudesPorPaso(2);
+      const paso3 = await getSolicitudesPorPaso(3);
+      const paso4 = await getSolicitudesPorPaso(4);
+      const paso5 = await getSolicitudesPorPaso(5);
+      data = [...paso2, ...paso3, ...paso4, ...paso5].filter(s => s.unidad_negocio === 'UNACEM PERU');
+    } else if (isLider) {
+      const paso3 = await getSolicitudesPorPaso(3);
+      const paso4 = await getSolicitudesPorPaso(4);
+      const paso5 = await getSolicitudesPorPaso(5);
+      data = [...paso3, ...paso4, ...paso5];
+    } else if (isAdmin) {
+      data = await getSolicitudesPorPaso(5);
+    } else {
+      // Solicitante ve sus propias solicitudes
+      const paso1 = await getSolicitudesPorPaso(1);
+      const paso2 = await getSolicitudesPorPaso(2);
+      const paso3 = await getSolicitudesPorPaso(3);
+      const paso4 = await getSolicitudesPorPaso(4);
+      const paso5 = await getSolicitudesPorPaso(5);
+      data = [...paso1, ...paso2, ...paso3, ...paso4, ...paso5].filter(s => s.email_solicitante === user?.email);
+    }
+    
+    setSolicitudes(data);
+  } catch {}
+  setLoading(false);
+}
 
   async function handleVerDetalle(id) {
     try {
