@@ -13,14 +13,17 @@ export default function LiderCategoria() {
 
   useEffect(() => { load(); }, []);
 
-  async function load() {
-    setLoading(true);
-    try {
-      const data = await getSolicitudesPorPaso(3);
-      setSolicitudes(data);
-    } catch {}
-    setLoading(false);
-  }
+ async function load() {
+  setLoading(true);
+  try {
+    const paso3 = await getSolicitudesPorPaso(3);
+    const paso4 = await getSolicitudesPorPaso(4);
+    const paso5 = await getSolicitudesPorPaso(5);
+    const data = [...paso3, ...paso4, ...paso5];
+    setSolicitudes(data);
+  } catch {}
+  setLoading(false);
+}
 
   async function handleAprobar() {
     setSaving(true);
