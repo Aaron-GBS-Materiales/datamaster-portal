@@ -50,12 +50,10 @@ function AppShell() {
   } else if (user?.rol === 'GESTOR DE INVENTARIO') {
     navItems = [
       { id:'gestorInventario', icon:'📦', label:'Inventario' },
-      { id:'missol', icon:'📋', label:'Mis solicitudes' },
     ];
   } else if (user?.rol === 'LIDER DE CATEGORÍA') {
     navItems = [
       { id:'liderCategoria', icon:'✓', label:'Aprobaciones' },
-      { id:'missol', icon:'📋', label:'Mi historial' },
     ];
   } else {
     navItems = [
