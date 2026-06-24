@@ -164,14 +164,14 @@ export async function aprobarPorLider(id, aprobado) {
   if (error) throw error;
 }
 
-export async function atenderSolicitud(id, atendido_por, cantidad_codigos) {
+export async function atenderSolicitud(id, atendido_por, codigoMaterial) {
   const { error } = await supabase
     .from('solicitudes')
     .update({
       estado:           'Atendida',
       fecha_respuesta:  new Date().toISOString(),
       atendido_por,
-      cantidad_codigos: parseInt(cantidad_codigos),
+      cantidad_codigos: codigoMaterial,
       paso:             5,
     })
     .eq('id', id);
