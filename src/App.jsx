@@ -37,7 +37,6 @@ function AppShell() {
   const { user, logout } = useAuth();
   const isAdmin = user?.rol === 'ADMINISTRADOR' || user?.rol === 'DATA MASTER';
   
-  // Determinar navegación según rol
   let navItems = [];
   if (isAdmin) {
     navItems = [
@@ -47,7 +46,7 @@ function AppShell() {
       { id:'baseDatos',        icon:'💾', label:'Base de Datos' },
       { id:'usuarios',         icon:'👥', label:'Usuarios' },
     ];
- javascript  } else if (user?.rol === 'GESTOR DE INVENTARIO') {
+  } else if (user?.rol === 'GESTOR DE INVENTARIO') {
     navItems = [
       { id:'gestorInventario', icon:'📦', label:'Inventario' },
       { id:'misRevisiones', icon:'📋', label:'Mi historial' },
@@ -64,10 +63,10 @@ function AppShell() {
     ];
   }
 
-const [page, setPage]   = useState(isAdmin ? 'dashboard' : 'nueva');
+  const [page, setPage]   = useState(isAdmin ? 'dashboard' : 'nueva');
   const [ticket, setTicket] = useState(null);
   const initials = user?.nombre?.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase()||'?';
-
+  
   const getPageTitle = () => {
     const titles = {
       dashboard: 'Dashboard',
@@ -76,6 +75,8 @@ const [page, setPage]   = useState(isAdmin ? 'dashboard' : 'nueva');
       baseDatos: 'Base de Datos',
       nueva: 'Nueva solicitud',
       missol: 'Mis solicitudes',
+      misRevisiones: 'Mi historial',
+      misAprobaciones: 'Mi historial',
       usuarios: 'Usuarios',
     };
     return titles[page] || '';
@@ -119,7 +120,7 @@ const [page, setPage]   = useState(isAdmin ? 'dashboard' : 'nueva');
           <div style={sh.av}>{initials}</div>
         </div>
         <div>
-        {page==='dashboard'       && <Dashboard />}
+          {page==='dashboard'       && <Dashboard />}
           {page==='gestorInventario' && <GestorInventario />}
           {page==='liderCategoria'   && <LiderCategoria />}
           {page==='baseDatos'        && <BaseDatos />}
