@@ -47,19 +47,25 @@ export default function LiderCategoria() {
     setSaving(false);
   }
 
+  const pendientes = solicitudes.filter(s => s.paso === 3);
+  const procesadas = solicitudes.filter(s => s.paso > 3);
+
   return (
     <div style={s.wrap}>
+      {/* PENDIENTES */}
       <div style={s.card}>
         <div style={s.header}>
           <div>
-            <h2 style={s.h2}>Revisión de Categoría</h2>
+            <h2 style={s.h2}>Pendientes de aprobar</h2>
             <p style={s.sub}>Paso 3: Aprueba o rechaza solicitudes</p>
           </div>
-          <span style={{fontSize:13, color:'#9ca3af'}}>{solicitudes.length} pendientes</span>
+          <span style={{fontSize:13, color:'#9ca3af'}}>{pendientes.length} pendientes</span>
         </div>
 
         {loading ? (
           <div style={s.loading}>Cargando…</div>
+        ) : pendientes.length === 0 ? (
+          <div style={s.empty}>No hay solicitudes pendientes</div>
         ) : (
           <div style={{overflowX:'auto'}}>
             <table style={s.table}>
@@ -71,7 +77,7 @@ export default function LiderCategoria() {
                 </tr>
               </thead>
               <tbody>
-                {solicitudes.map(sol => (
+                {pendientes.map(sol => (
                   <tr key={sol.id}>
                     <td style={{...s.td, fontFamily:'monospace', color:'#2563eb', fontWeight:600}}>{sol.ticket_id}</td>
                     <td style={s.td}>{sol.nombre_solicitante}</td>
@@ -85,17 +91,51 @@ export default function LiderCategoria() {
                     </td>
                   </tr>
                 ))}
-                {solicitudes.length === 0 && (
-                  <tr><td colSpan={6} style={{...s.td, textAlign:'center', color:'#9ca3af', padding:40}}>
-                    No hay solicitudes pendientes de aprobación
-                  </td></tr>
-                )}
               </tbody>
             </table>
           </div>
         )}
       </div>
 
+      {/* HISTORIAL */}
+      {procesadas.length > 0 && (
+        <div style={s.card}>
+          <div style={s.header}>
+            <h3 style={{...s.h2, fontSize:16}}>Historial ({procesadas.length})</h3>
+          </div>
+          <div style={{overflowX:'auto'}}>
+            <table style={s.table}>
+              <thead>
+                <tr>
+                  {['Ticket','Solicitante','Tipo Material','Grupo','Estado','Fecha'].map(h=>
+                    <th key={h} style={s.th}>{h}</th>
+                  )}
+                </tr>
+              </thead>
+              <tbody>
+                {procesadas.map(sol => (
+                  <tr key={sol.id} style={{opacity:.7}}>
+                    <td style={{...s.td, fontFamily:'monospace', color:'#2563eb', fontWeight:600}}>{sol.ticket_id}</td>
+                    <td style={s.td}>{sol.nombre_solicitante}</td>
+                    <td style={s.td}>{sol.tipo_material || '—'}</td>
+                    <td style={s.td}>{sol.grupo_articulos || '—'}</td>
+                    <td style={s.td}>
+                      <span style={{fontSize:11, fontWeight:600, padding:'3px 8px', borderRadius:12, background:sol.estado==='Rechazada'?'#fef2f2':'#dcfce7', color:sol.estado==='Rechazada'?'#dc2626':'#16a34a'}}>
+                        {sol.estado}
+                      </span>
+                    </td>
+                    <td style={{...s.td, fontSize:11, color:'#6b7280'}}>
+                      {sol.fecha_recepcion ? new Date(sol.fecha_recepcion).toLocaleDateString('es-PE') : '—'}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL */}
       {selected && (
         <div style={s.modalBg} onClick={()=>setSelected(null)}>
           <div style={s.modal} onClick={e=>e.stopPropagation()}>
@@ -130,7 +170,8 @@ export default function LiderCategoria() {
             </div>
 
             <div style={{display:'flex', gap:10, justifyContent:'flex-end'}}>
-              <button style={s.btnReject} onClick={handleRechazar} disabled={saving}>
+              <button style={s.btnCancel} onClick={()=>setSelected(null)}>Cancelar</button>
+              <button style={s.btnReject} onClick={handleRechazar} disabled={!motivo || saving}>
                 {saving ? 'Procesando…' : '✗ Rechazar'}
               </button>
               <button style={s.btnApprove} onClick={handleAprobar} disabled={saving}>
@@ -146,11 +187,12 @@ export default function LiderCategoria() {
 
 const s = {
   wrap:       { padding:28 },
-  card:       { background:'#fff', border:'1px solid #e2e5ef', borderRadius:12, overflow:'hidden' },
+  card:       { background:'#fff', border:'1px solid #e2e5ef', borderRadius:12, overflow:'hidden', marginBottom:20 },
   header:     { padding:'20px 24px', borderBottom:'1px solid #e2e5ef', display:'flex', alignItems:'center', justifyContent:'space-between' },
   h2:         { fontSize:18, fontWeight:800, color:'#0f1d3a', margin:0 },
   sub:        { fontSize:12, color:'#6b7280', marginTop:3 },
   loading:    { padding:48, textAlign:'center', color:'#9ca3af' },
+  empty:      { padding:48, textAlign:'center', color:'#9ca3af' },
   table:      { width:'100%', borderCollapse:'collapse' },
   th:         { padding:'10px 14px', background:'#f5f6fa', fontSize:11, fontWeight:600, color:'#6b7280', textTransform:'uppercase', letterSpacing:'.6px', textAlign:'left', borderBottom:'1px solid #e2e5ef', whiteSpace:'nowrap' },
   td:         { padding:'11px 14px', fontSize:13, color:'#374151', borderBottom:'1px solid #f0f2f8' },
@@ -162,6 +204,7 @@ const s = {
   infoBox:    { background:'#f5f6fa', borderRadius:8, padding:16, marginBottom:20 },
   label:      { display:'block', fontSize:12, fontWeight:600, color:'#374151' },
   input:      { width:'100%', padding:'10px 13px', border:'1.5px solid #e2e5ef', borderRadius:8, fontSize:14, outline:'none', boxSizing:'border-box', fontFamily:'Inter,sans-serif' },
+  btnCancel:  { padding:'10px 18px', background:'#f5f6fa', color:'#374151', border:'1.5px solid #e2e5ef', borderRadius:8, fontSize:14, fontWeight:600, cursor:'pointer' },
   btnReject:  { padding:'10px 18px', background:'#fef2f2', color:'#dc2626', border:'1px solid #fecaca', borderRadius:8, fontSize:14, fontWeight:600, cursor:'pointer' },
   btnApprove: { padding:'10px 22px', background:'#16a34a', color:'#fff', border:'none', borderRadius:8, fontSize:14, fontWeight:700, cursor:'pointer' },
 };

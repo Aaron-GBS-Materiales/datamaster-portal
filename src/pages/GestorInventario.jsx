@@ -1,9 +1,9 @@
 // pages/GestorInventario.jsx
 import { useState, useEffect } from 'react';
-import { getSolicitudesPorPaso, avanzarPaso } from '../services/supabase';
+import { getSolicitudesPorPaso, avanzarPaso, rechazarSolicitud } from '../services/supabase';
 import { useAuth } from '../context/AuthContext';
+import { TIPOS_MATERIAL, GRUPOS_ARTICULOS } from '../constants/materiales';
 
-const GRUPOS_ARTICULOS = ['Cemento','Agregados','Acero','Tubería','Equipos','Otros'];
 const FLAG = { Perú:'🇵🇪', Colombia:'🇨🇴', Chile:'🇨🇱', Ecuador:'🇪🇨', Bolivia:'🇧🇴' };
 
 export default function GestorInventario() {
@@ -12,6 +12,8 @@ export default function GestorInventario() {
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState(null);
   const [form, setForm] = useState({ tipoMaterial: '', grupoArticulos: '' });
+  const [motivo, setMotivo] = useState('');
+  const [action, setAction] = useState(null); // 'completar' o 'rechazar'
   const [saving, setSaving] = useState(false);
 
   useEffect(() => { load(); }, []);
@@ -36,24 +38,45 @@ export default function GestorInventario() {
       });
       setSelected(null);
       setForm({ tipoMaterial: '', grupoArticulos: '' });
+      setAction(null);
       load();
     } catch {}
     setSaving(false);
   }
 
+  async function handleRechazar() {
+    if (!motivo) return;
+    setSaving(true);
+    try {
+      await rechazarSolicitud(selected.id, motivo);
+      setSelected(null);
+      setMotivo('');
+      setAction(null);
+      load();
+    } catch {}
+    setSaving(false);
+  }
+
+  const procesadas = solicitudes.filter(s => s.paso > 2);
+
+  const gruposDisponibles = form.tipoMaterial ? (GRUPOS_ARTICULOS[form.tipoMaterial] || []) : [];
+
   return (
     <div style={s.wrap}>
+      {/* PENDIENTES */}
       <div style={s.card}>
         <div style={s.header}>
           <div>
-            <h2 style={s.h2}>Revisión de Inventario</h2>
+            <h2 style={s.h2}>Pendientes de revisar</h2>
             <p style={s.sub}>Paso 2: Completa información del material</p>
           </div>
-          <span style={{fontSize:13, color:'#9ca3af'}}>{solicitudes.length} pendientes</span>
+          <span style={{fontSize:13, color:'#9ca3af'}}>{solicitudes.filter(s => s.paso === 2).length} pendientes</span>
         </div>
 
         {loading ? (
           <div style={s.loading}>Cargando…</div>
+        ) : solicitudes.filter(s => s.paso === 2).length === 0 ? (
+          <div style={s.empty}>No hay solicitudes pendientes</div>
         ) : (
           <div style={{overflowX:'auto'}}>
             <table style={s.table}>
@@ -65,7 +88,7 @@ export default function GestorInventario() {
                 </tr>
               </thead>
               <tbody>
-                {solicitudes.map(sol => (
+                {solicitudes.filter(s => s.paso === 2).map(sol => (
                   <tr key={sol.id}>
                     <td style={{...s.td, fontFamily:'monospace', color:'#2563eb', fontWeight:600}}>{sol.ticket_id}</td>
                     <td style={s.td}>{sol.nombre_solicitante}</td>
@@ -77,23 +100,57 @@ export default function GestorInventario() {
                       </span>
                     </td>
                     <td style={s.td}>
-                      <button style={s.btnRevisar} onClick={()=>{setSelected(sol); setForm({ tipoMaterial: '', grupoArticulos: '' });}}>
+                      <button style={s.btnRevisar} onClick={()=>{setSelected(sol); setForm({ tipoMaterial: '', grupoArticulos: '' }); setMotivo(''); setAction(null);}}>
                         Revisar →
                       </button>
                     </td>
                   </tr>
                 ))}
-                {solicitudes.length === 0 && (
-                  <tr><td colSpan={6} style={{...s.td, textAlign:'center', color:'#9ca3af', padding:40}}>
-                    No hay solicitudes pendientes de revisión
-                  </td></tr>
-                )}
               </tbody>
             </table>
           </div>
         )}
       </div>
 
+      {/* PROCESADAS */}
+      {procesadas.length > 0 && (
+        <div style={s.card}>
+          <div style={s.header}>
+            <h3 style={{...s.h2, fontSize:16}}>Historial de revisiones ({procesadas.length})</h3>
+          </div>
+          <div style={{overflowX:'auto'}}>
+            <table style={s.table}>
+              <thead>
+                <tr>
+                  {['Ticket','Solicitante','Tipo Material','Grupo','Estado','Fecha'].map(h=>
+                    <th key={h} style={s.th}>{h}</th>
+                  )}
+                </tr>
+              </thead>
+              <tbody>
+                {procesadas.map(sol => (
+                  <tr key={sol.id} style={{opacity:.7}}>
+                    <td style={{...s.td, fontFamily:'monospace', color:'#2563eb', fontWeight:600}}>{sol.ticket_id}</td>
+                    <td style={s.td}>{sol.nombre_solicitante}</td>
+                    <td style={s.td}>{sol.tipo_material || '—'}</td>
+                    <td style={s.td}>{sol.grupo_articulos || '—'}</td>
+                    <td style={s.td}>
+                      <span style={{fontSize:11, fontWeight:600, padding:'3px 8px', borderRadius:12, background:sol.estado==='Rechazada'?'#fef2f2':'#dcfce7', color:sol.estado==='Rechazada'?'#dc2626':'#16a34a'}}>
+                        {sol.estado}
+                      </span>
+                    </td>
+                    <td style={{...s.td, fontSize:11, color:'#6b7280'}}>
+                      {sol.fecha_recepcion ? new Date(sol.fecha_recepcion).toLocaleDateString('es-PE') : '—'}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL */}
       {selected && (
         <div style={s.modalBg} onClick={()=>setSelected(null)}>
           <div style={s.modal} onClick={e=>e.stopPropagation()}>
@@ -115,25 +172,51 @@ export default function GestorInventario() {
               </div>
             </div>
 
-            <div style={{marginBottom:16}}>
-              <label style={{...s.label, marginBottom:7}}>Tipo de Material <span style={{color:'#dc2626'}}>*</span></label>
-              <input style={s.input} placeholder="Ej: Cemento Portland"
-                value={form.tipoMaterial} onChange={e=>setForm({...form, tipoMaterial:e.target.value})} />
-            </div>
+            {action !== 'rechazar' ? (
+              <>
+                <div style={{marginBottom:16}}>
+                  <label style={{...s.label, marginBottom:7}}>Tipo de Material <span style={{color:'#dc2626'}}>*</span></label>
+                  <select style={s.select} value={form.tipoMaterial} onChange={e=>{setForm({tipoMaterial:e.target.value, grupoArticulos:''});}}>
+                    <option value="">Seleccionar tipo…</option>
+                    {TIPOS_MATERIAL.map(t=><option key={t.codigo} value={t.codigo}>{t.codigo} - {t.nombre}</option>)}
+                  </select>
+                </div>
 
-            <div style={{marginBottom:20}}>
-              <label style={{...s.label, marginBottom:7}}>Grupo de Artículos <span style={{color:'#dc2626'}}>*</span></label>
-              <select style={s.select} value={form.grupoArticulos} onChange={e=>setForm({...form, grupoArticulos:e.target.value})}>
-                <option value="">Seleccionar…</option>
-                {GRUPOS_ARTICULOS.map(g=><option key={g}>{g}</option>)}
-              </select>
-            </div>
+                <div style={{marginBottom:20}}>
+                  <label style={{...s.label, marginBottom:7}}>Grupo de Artículos <span style={{color:'#dc2626'}}>*</span></label>
+                  <select style={s.select} value={form.grupoArticulos} onChange={e=>setForm({...form, grupoArticulos:e.target.value})} disabled={!form.tipoMaterial}>
+                    <option value="">Seleccionar grupo…</option>
+                    {gruposDisponibles.map(g=><option key={g.codigo} value={g.codigo}>{g.codigo} - {g.nombre}</option>)}
+                  </select>
+                </div>
+              </>
+            ) : (
+              <div style={{marginBottom:20}}>
+                <label style={{...s.label, marginBottom:7}}>Motivo del rechazo</label>
+                <textarea style={{...s.input, resize:'vertical', minHeight:80}} placeholder="Indica por qué se rechaza esta solicitud"
+                  value={motivo} onChange={e=>setMotivo(e.target.value)} />
+              </div>
+            )}
 
             <div style={{display:'flex', gap:10, justifyContent:'flex-end'}}>
               <button style={s.btnCancel} onClick={()=>setSelected(null)}>Cancelar</button>
-              <button style={s.btnComplete} onClick={handleCompletar} disabled={!form.tipoMaterial || !form.grupoArticulos || saving}>
-                {saving ? 'Enviando…' : 'Enviar a Líder →'}
-              </button>
+              {action === null ? (
+                <>
+                  <button style={s.btnReject} onClick={()=>setAction('rechazar')} disabled={saving}>
+                    ✗ Rechazar
+                  </button>
+                  <button style={s.btnComplete} onClick={handleCompletar} disabled={!form.tipoMaterial || !form.grupoArticulos || saving}>
+                    {saving ? 'Enviando…' : 'Enviar a Líder →'}
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button style={s.btnCancel} onClick={()=>setAction(null)}>Atrás</button>
+                  <button style={s.btnReject} onClick={handleRechazar} disabled={!motivo || saving}>
+                    {saving ? 'Rechazando…' : 'Confirmar rechazo'}
+                  </button>
+                </>
+              )}
             </div>
           </div>
         </div>
@@ -144,11 +227,12 @@ export default function GestorInventario() {
 
 const s = {
   wrap:       { padding:28 },
-  card:       { background:'#fff', border:'1px solid #e2e5ef', borderRadius:12, overflow:'hidden' },
+  card:       { background:'#fff', border:'1px solid #e2e5ef', borderRadius:12, overflow:'hidden', marginBottom:20 },
   header:     { padding:'20px 24px', borderBottom:'1px solid #e2e5ef', display:'flex', alignItems:'center', justifyContent:'space-between' },
   h2:         { fontSize:18, fontWeight:800, color:'#0f1d3a', margin:0 },
   sub:        { fontSize:12, color:'#6b7280', marginTop:3 },
   loading:    { padding:48, textAlign:'center', color:'#9ca3af' },
+  empty:      { padding:48, textAlign:'center', color:'#9ca3af' },
   table:      { width:'100%', borderCollapse:'collapse' },
   th:         { padding:'10px 14px', background:'#f5f6fa', fontSize:11, fontWeight:600, color:'#6b7280', textTransform:'uppercase', letterSpacing:'.6px', textAlign:'left', borderBottom:'1px solid #e2e5ef', whiteSpace:'nowrap' },
   td:         { padding:'11px 14px', fontSize:13, color:'#374151', borderBottom:'1px solid #f0f2f8' },
@@ -162,5 +246,6 @@ const s = {
   input:      { width:'100%', padding:'10px 13px', border:'1.5px solid #e2e5ef', borderRadius:8, fontSize:14, outline:'none', boxSizing:'border-box' },
   select:     { width:'100%', padding:'10px 13px', border:'1.5px solid #e2e5ef', borderRadius:8, fontSize:14, outline:'none', boxSizing:'border-box', background:'#fff' },
   btnCancel:  { padding:'10px 18px', background:'#f5f6fa', color:'#374151', border:'1.5px solid #e2e5ef', borderRadius:8, fontSize:14, fontWeight:600, cursor:'pointer' },
+  btnReject:  { padding:'10px 18px', background:'#fef2f2', color:'#dc2626', border:'1px solid #fecaca', borderRadius:8, fontSize:14, fontWeight:600, cursor:'pointer' },
   btnComplete:{ padding:'10px 22px', background:'#2563eb', color:'#fff', border:'none', borderRadius:8, fontSize:14, fontWeight:700, cursor:'pointer' },
 };

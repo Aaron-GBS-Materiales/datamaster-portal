@@ -5,9 +5,12 @@ import { createSolicitud } from '../services/supabase';
 
 const UNIDADES = ['UN','KG','MT','LT','GL','TN','M2','M3','CJ','BL','PAR','JGO','RLL'];
 
+const TIPOS_MATERIAL = ['Cemento','Agregados','Aditivos','Tuberías','Acero','Otros'];
+const ORIGENES = ['Nacional','Importado','Ambos'];
+
 export default function NuevaSolicitud({ onSuccess }) {
   const { user } = useAuth();
-  const [form, setForm]       = useState({ denominacion:'', unidadMedida:'', textoPedido:'' });
+  const [form, setForm]       = useState({ denominacion:'', unidadMedida:'', textoPedido:'', tipoMaterial:'', origen:'' });
   const [loading, setLoading] = useState(false);
   const [error, setError]     = useState('');
 
@@ -15,11 +18,12 @@ export default function NuevaSolicitud({ onSuccess }) {
 
   async function handleSubmit(e) {
     e.preventDefault();
-    if (!form.denominacion || !form.unidadMedida || !form.textoPedido) {
+    if (!form.denominacion || !form.unidadMedida || !form.textoPedido || !form.tipoMaterial || !form.origen) {
       setError('Completa todos los campos antes de enviar.'); return;
     }
     setError(''); setLoading(true);
     try {
+      const flujo = user.unidadNegocio === 'UNACEM PERU' ? 'extendido' : 'directo';
       const sol = await createSolicitud({
         email:         user.email,
         nombre:        user.nombre,
@@ -28,9 +32,12 @@ export default function NuevaSolicitud({ onSuccess }) {
         denominacion:  form.denominacion,
         unidadMedida:  form.unidadMedida,
         textoPedido:   form.textoPedido,
+        tipoMaterial:  form.tipoMaterial,
+        origen:        form.origen,
+        flujo,
       });
       onSuccess(sol.ticket_id);
-      setForm({ denominacion:'', unidadMedida:'', textoPedido:'' });
+      setForm({ denominacion:'', unidadMedida:'', textoPedido:'', tipoMaterial:'', origen:'' });
     } catch {
       setError('Error al enviar la solicitud. Intenta nuevamente.');
     }
@@ -57,7 +64,7 @@ export default function NuevaSolicitud({ onSuccess }) {
         <div style={s.infoBanner}>
           <span>ℹ️</span>
           <span style={{fontSize:13, color:'#1e40af'}}>
-            Completa los datos del material. El Gestor de Inventario completará la información adicional.
+            Tus datos se registran automáticamente. Solo completa los campos del material.
           </span>
         </div>
 
@@ -79,11 +86,19 @@ export default function NuevaSolicitud({ onSuccess }) {
           </div>
 
           <div style={s.field}>
-            <label style={s.label}>Texto de pedido de compra <span style={{color:'#dc2626'}}>*</span></label>
-            <textarea style={s.textarea} rows={5}
-              placeholder="Especificaciones técnicas, uso del material, proveedor referencial u otra información relevante…"
-              value={form.textoPedido} onChange={e => set('textoPedido', e.target.value)} />
-            <span style={s.hint}>Incluye toda la información técnica disponible.</span>
+            <label style={s.label}>Tipo de material <span style={{color:'#dc2626'}}>*</span></label>
+            <select style={s.select} value={form.tipoMaterial} onChange={e => set('tipoMaterial', e.target.value)}>
+              <option value="">Seleccionar tipo…</option>
+              {TIPOS_MATERIAL.map(t => <option key={t}>{t}</option>)}
+            </select>
+          </div>
+
+          <div style={s.field}>
+            <label style={s.label}>Origen del material <span style={{color:'#dc2626'}}>*</span></label>
+            <select style={s.select} value={form.origen} onChange={e => set('origen', e.target.value)}>
+              <option value="">Seleccionar origen…</option>
+              {ORIGENES.map(o => <option key={o}>{o}</option>)}
+            </select>
           </div>
 
           {error && <div style={s.errorBox}>{error}</div>}
