@@ -1,6 +1,5 @@
-// pages/GestorInventario.jsx
 import { useState, useEffect } from 'react';
-import { getSolicitudesPorPaso, avanzarPaso, rechazarSolicitud } from '../services/supabase';
+import { getSolicitudesPorPaso, avanzarPaso, rechazarSolicitud, getPosicionesBySolicitud } from '../services/supabase';
 import { useAuth } from '../context/AuthContext';
 import { TIPOS_MATERIAL, GRUPOS_ARTICULOS } from '../constants/materiales';
 
@@ -13,23 +12,31 @@ export default function GestorInventario() {
   const [selected, setSelected] = useState(null);
   const [form, setForm] = useState({ tipoMaterial: '', grupoArticulos: '' });
   const [motivo, setMotivo] = useState('');
-  const [action, setAction] = useState(null); // 'completar' o 'rechazar'
+  const [action, setAction] = useState(null);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => { load(); }, []);
 
-async function load() {
-  setLoading(true);
-  try {
-    const paso2 = await getSolicitudesPorPaso(2);
-    const paso3 = await getSolicitudesPorPaso(3);
-    const paso4 = await getSolicitudesPorPaso(4);
-    const paso5 = await getSolicitudesPorPaso(5);
-    const data = [...paso2, ...paso3, ...paso4, ...paso5].filter(s => s.unidad_negocio === 'UNACEM PERU');
-    setSolicitudes(data);
-  } catch {}
-  setLoading(false);
-}
+  async function load() {
+    setLoading(true);
+    try {
+      const paso2 = await getSolicitudesPorPaso(2);
+      const paso3 = await getSolicitudesPorPaso(3);
+      const paso4 = await getSolicitudesPorPaso(4);
+      const paso5 = await getSolicitudesPorPaso(5);
+      const data = [...paso2, ...paso3, ...paso4, ...paso5].filter(s => s.unidad_negocio === 'UNACEM PERU');
+      setSolicitudes(data);
+    } catch {}
+    setLoading(false);
+  }
+
+  async function handleRevisar(sol) {
+    const pos = await getPosicionesBySolicitud(sol.id);
+    setSelected({...sol, posiciones: pos});
+    setForm({ tipoMaterial: '', grupoArticulos: '' });
+    setMotivo('');
+    setAction(null);
+  }
 
   async function handleCompletar() {
     if (!form.tipoMaterial || !form.grupoArticulos) return;
@@ -62,7 +69,6 @@ async function load() {
   }
 
   const procesadas = solicitudes.filter(s => s.paso > 2);
-
   const gruposDisponibles = form.tipoMaterial ? (GRUPOS_ARTICULOS[form.tipoMaterial] || []) : [];
 
   return (
@@ -86,7 +92,7 @@ async function load() {
             <table style={s.table}>
               <thead>
                 <tr>
-                  {['Ticket','Solicitante','Denominación','País','Estado','Acción'].map(h=>
+                  {['Ticket','Solicitante','País','Estado','Acción'].map(h=>
                     <th key={h} style={s.th}>{h}</th>
                   )}
                 </tr>
@@ -96,7 +102,6 @@ async function load() {
                   <tr key={sol.id}>
                     <td style={{...s.td, fontFamily:'monospace', color:'#2563eb', fontWeight:600}}>{sol.ticket_id}</td>
                     <td style={s.td}>{sol.nombre_solicitante}</td>
-                    <td style={{...s.td, maxWidth:200, overflow:'hidden', textOverflow:'ellipsis'}} title={sol.denominacion}>{sol.denominacion}</td>
                     <td style={s.td}>{FLAG[sol.pais]||''} {sol.pais}</td>
                     <td style={s.td}>
                       <span style={{fontSize:11, fontWeight:600, padding:'3px 8px', borderRadius:12, background:'#eff4ff', color:'#2563eb'}}>
@@ -104,7 +109,7 @@ async function load() {
                       </span>
                     </td>
                     <td style={s.td}>
-                      <button style={s.btnRevisar} onClick={()=>{setSelected(sol); setForm({ tipoMaterial: '', grupoArticulos: '' }); setMotivo(''); setAction(null);}}>
+                      <button style={s.btnRevisar} onClick={() => handleRevisar(sol)}>
                         Revisar →
                       </button>
                     </td>
@@ -161,19 +166,25 @@ async function load() {
             <h3 style={s.mTitle}>Revisar y Completar</h3>
             <p style={s.mSub}>{selected.ticket_id} · {selected.nombre_solicitante}</p>
 
-            <div style={s.infoBox}>
-              <div style={{marginBottom:12}}>
-                <div style={{fontSize:10, fontWeight:600, color:'#9ca3af', textTransform:'uppercase', letterSpacing:'.5px', marginBottom:3}}>
-                  Denominación
+            <div style={s.posicionesBox}>
+              <div style={{fontSize:12, fontWeight:700, color:'#0f1d3a', marginBottom:12}}>Posiciones solicitadas</div>
+              {selected.posiciones && selected.posiciones.map((pos, idx) => (
+                <div key={pos.id} style={{marginBottom:14, paddingBottom:14, borderBottom: idx < selected.posiciones.length - 1 ? '1px solid #e2e5ef' : 'none'}}>
+                  <div style={{fontSize:11, fontWeight:600, color:'#9ca3af', marginBottom:8}}>POSICION {idx + 1}</div>
+                  <div style={{marginBottom:8}}>
+                    <div style={{fontSize:10, fontWeight:600, color:'#9ca3af', marginBottom:2}}>DENOMINACION</div>
+                    <div style={{fontSize:13, color:'#111827'}}>{pos.denominacion}</div>
+                  </div>
+                  <div style={{marginBottom:8}}>
+                    <div style={{fontSize:10, fontWeight:600, color:'#9ca3af', marginBottom:2}}>UNIDAD DE MEDIDA</div>
+                    <div style={{fontSize:13, color:'#111827'}}>{pos.unidad_medida}</div>
+                  </div>
+                  <div>
+                    <div style={{fontSize:10, fontWeight:600, color:'#9ca3af', marginBottom:2}}>TEXTO DE PEDIDO</div>
+                    <div style={{fontSize:13, color:'#111827', whiteSpace:'pre-wrap', maxHeight:60, overflow:'auto'}}>{pos.texto_pedido}</div>
+                  </div>
                 </div>
-                <div style={{fontSize:13, color:'#111827'}}>{selected.denominacion}</div>
-              </div>
-              <div>
-                <div style={{fontSize:10, fontWeight:600, color:'#9ca3af', textTransform:'uppercase', letterSpacing:'.5px', marginBottom:3}}>
-                  Unidad de Medida
-                </div>
-                <div style={{fontSize:13, color:'#111827'}}>{selected.unidad_medida}</div>
-              </div>
+              ))}
             </div>
 
             {action !== 'rechazar' ? (
@@ -242,10 +253,10 @@ const s = {
   td:         { padding:'11px 14px', fontSize:13, color:'#374151', borderBottom:'1px solid #f0f2f8' },
   btnRevisar: { padding:'5px 12px', background:'#eff4ff', color:'#2563eb', border:'1px solid #bfdbfe', borderRadius:7, fontSize:12, fontWeight:600, cursor:'pointer' },
   modalBg:    { position:'fixed', inset:0, background:'rgba(0,0,0,.45)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:200, padding:24 },
-  modal:      { background:'#fff', borderRadius:16, padding:32, maxWidth:480, width:'100%', boxShadow:'0 24px 64px rgba(0,0,0,.2)' },
+  modal:      { background:'#fff', borderRadius:16, padding:32, maxWidth:520, width:'100%', boxShadow:'0 24px 64px rgba(0,0,0,.2)', maxHeight:'90vh', overflow:'auto' },
   mTitle:     { fontSize:18, fontWeight:800, color:'#0f1d3a', marginBottom:4 },
   mSub:       { fontSize:13, color:'#6b7280', marginBottom:20 },
-  infoBox:    { background:'#f5f6fa', borderRadius:8, padding:16, marginBottom:20 },
+  posicionesBox:{ background:'#f5f6fa', borderRadius:8, padding:14, marginBottom:20 },
   label:      { display:'block', fontSize:12, fontWeight:600, color:'#374151' },
   input:      { width:'100%', padding:'10px 13px', border:'1.5px solid #e2e5ef', borderRadius:8, fontSize:14, outline:'none', boxSizing:'border-box' },
   select:     { width:'100%', padding:'10px 13px', border:'1.5px solid #e2e5ef', borderRadius:8, fontSize:14, outline:'none', boxSizing:'border-box', background:'#fff' },
