@@ -18,14 +18,18 @@ export default function GestorInventario() {
 
   useEffect(() => { load(); }, []);
 
-  async function load() {
-    setLoading(true);
-    try {
-      const data = await getSolicitudesPorPaso(2);
-      setSolicitudes(data.filter(s => s.unidad_negocio === 'UNACEM PERU'));
-    } catch {}
-    setLoading(false);
-  }
+async function load() {
+  setLoading(true);
+  try {
+    const paso2 = await getSolicitudesPorPaso(2);
+    const paso3 = await getSolicitudesPorPaso(3);
+    const paso4 = await getSolicitudesPorPaso(4);
+    const paso5 = await getSolicitudesPorPaso(5);
+    const data = [...paso2, ...paso3, ...paso4, ...paso5].filter(s => s.unidad_negocio === 'UNACEM PERU');
+    setSolicitudes(data);
+  } catch {}
+  setLoading(false);
+}
 
   async function handleCompletar() {
     if (!form.tipoMaterial || !form.grupoArticulos) return;
