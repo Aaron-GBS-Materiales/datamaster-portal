@@ -17,51 +17,51 @@ export default function Dashboard({ soloMias }) {
 
   useEffect(() => { load(); }, []);
 
-async function load() {
-  setLoading(true);
-  try {
-    let data = [];
-    
-    if (isGestor) {
-      const paso2 = await getSolicitudesPorPaso(2);
-      const paso3 = await getSolicitudesPorPaso(3);
-      const paso4 = await getSolicitudesPorPaso(4);
-      const paso5 = await getSolicitudesPorPaso(5);
-      data = [...paso2, ...paso3, ...paso4, ...paso5].filter(s => s.unidad_negocio === 'UNACEM PERU');
-    } else if (isLider) {
-      const paso3 = await getSolicitudesPorPaso(3);
-      const paso4 = await getSolicitudesPorPaso(4);
-      const paso5 = await getSolicitudesPorPaso(5);
-      data = [...paso3, ...paso4, ...paso5];
-    } else if (isAdmin) {
-      data = await getSolicitudesPorPaso(5);
-    } else {
-      const paso1 = await getSolicitudesPorPaso(1);
-      const paso2 = await getSolicitudesPorPaso(2);
-      const paso3 = await getSolicitudesPorPaso(3);
-      const paso4 = await getSolicitudesPorPaso(4);
-      const paso5 = await getSolicitudesPorPaso(5);
-      data = [...paso1, ...paso2, ...paso3, ...paso4, ...paso5].filter(s => s.email_solicitante === user?.email);
-    }
-    
-    const dataConPosiciones = await Promise.all(data.map(async (sol) => {
-      const pos = await getPosicionesBySolicitud(sol.id);
-      return {...sol, posiciones: pos};
-    }));
-    
-    setSolicitudes(dataConPosiciones);
-  } catch {}
-  setLoading(false);
-}
+  async function load() {
+    setLoading(true);
+    try {
+      let data = [];
+      
+      if (isGestor) {
+        const paso2 = await getSolicitudesPorPaso(2);
+        const paso3 = await getSolicitudesPorPaso(3);
+        const paso4 = await getSolicitudesPorPaso(4);
+        const paso5 = await getSolicitudesPorPaso(5);
+        data = [...paso2, ...paso3, ...paso4, ...paso5].filter(s => s.unidad_negocio === 'UNACEM PERU');
+      } else if (isLider) {
+        const paso3 = await getSolicitudesPorPaso(3);
+        const paso4 = await getSolicitudesPorPaso(4);
+        const paso5 = await getSolicitudesPorPaso(5);
+        data = [...paso3, ...paso4, ...paso5];
+      } else if (isAdmin) {
+        data = await getSolicitudesPorPaso(5);
+      } else {
+        const paso1 = await getSolicitudesPorPaso(1);
+        const paso2 = await getSolicitudesPorPaso(2);
+        const paso3 = await getSolicitudesPorPaso(3);
+        const paso4 = await getSolicitudesPorPaso(4);
+        const paso5 = await getSolicitudesPorPaso(5);
+        data = [...paso1, ...paso2, ...paso3, ...paso4, ...paso5].filter(s => s.email_solicitante === user?.email);
+      }
+      
+      const dataConPosiciones = await Promise.all(data.map(async (sol) => {
+        const pos = await getPosicionesBySolicitud(sol.id);
+        return {...sol, posiciones: pos};
+      }));
+      
+      setSolicitudes(dataConPosiciones);
+    } catch {}
+    setLoading(false);
+  }
 
-async function handleVerDetalle(id) {
-  try {
-    const det = await getSolicitudById(id);
-    const pos = await getPosicionesBySolicitud(id);
-    setDetalle({...det, posiciones: pos});
-    setSelected(id);
-  } catch {}
-}
+  async function handleVerDetalle(id) {
+    try {
+      const det = await getSolicitudById(id);
+      const pos = await getPosicionesBySolicitud(id);
+      setDetalle({...det, posiciones: pos});
+      setSelected(id);
+    } catch {}
+  }
 
   const pendientes = solicitudes.filter(s => s.paso < 5);
   const completadas = solicitudes.filter(s => s.paso === 5);
@@ -126,9 +126,9 @@ async function handleVerDetalle(id) {
               <tbody>
                 {solicitudes.map(sol => (
                   <tr key={sol.id}>
-                    <td style={{...s.td, maxWidth:150, overflow:'hidden', textOverflow:'ellipsis'}} title={sol.posiciones?.[0]?.denominacion || '—'}>{sol.posiciones?.[0]?.denominacion || '—'}</td>
+                    <td style={{...s.td, fontFamily:'monospace', color:'#2563eb', fontWeight:600}}>{sol.ticket_id}</td>
                     <td style={s.td}>{sol.nombre_solicitante}</td>
-                    <td style={{...s.td, maxWidth:150, overflow:'hidden', textOverflow:'ellipsis'}} title={sol.denominacion}>{sol.denominacion}</td>
+                    <td style={{...s.td, maxWidth:150, overflow:'hidden', textOverflow:'ellipsis'}} title={sol.posiciones?.[0]?.denominacion || '—'}>{sol.posiciones?.[0]?.denominacion || '—'}</td>
                     <td style={s.td}>{sol.tipo_material || '—'}</td>
                     <td style={s.td}>{sol.grupo_articulos || '—'}</td>
                     <td style={s.td}>
@@ -159,7 +159,7 @@ async function handleVerDetalle(id) {
             <h3 style={s.mTitle}>Detalle de Solicitud</h3>
             <p style={s.mSub}>{detalle.ticket_id}</p>
 
-<div style={s.seccion}>
+            <div style={s.seccion}>
               <div style={s.seccionTitle}>Posiciones</div>
               {detalle.posiciones && detalle.posiciones.length > 0 ? (
                 detalle.posiciones.map((pos, idx) => (
