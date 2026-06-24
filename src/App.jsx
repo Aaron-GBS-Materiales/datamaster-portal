@@ -120,12 +120,14 @@ const [page, setPage]   = useState(defaultPage);
           <div style={sh.av}>{initials}</div>
         </div>
         <div>
-          {page==='dashboard'       && <Dashboard />}
+{page==='dashboard'       && <Dashboard />}
           {page==='gestorInventario' && <GestorInventario />}
           {page==='liderCategoria'   && <LiderCategoria />}
           {page==='baseDatos'        && <BaseDatos />}
           {page==='nueva'            && <NuevaSolicitud onSuccess={id=>{setTicket(id);}} />}
           {page==='missol'           && <Dashboard soloMias />}
+          {page==='misRevisiones'    && <Dashboard soloMias={user?.rol === 'GESTOR DE INVENTARIO'} />}
+          {page==='misAprobaciones'  && <Dashboard soloMias={user?.rol === 'LIDER DE CATEGORÍA'} />}
           {page==='usuarios'         && <Usuarios />}
         </div>
       </div>
