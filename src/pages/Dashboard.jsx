@@ -114,10 +114,10 @@ export default function Dashboard({ soloMias = false }) {
                       {sol.fecha_recepcion ? new Date(sol.fecha_recepcion).toLocaleString('es-PE') : '—'}
                     </td>
                     <td style={{...s.td, whiteSpace:'nowrap'}}>
-                      {sol.estado==='Pendiente' && !soloMias && (
+                      {sol.estado==='Pendiente' && user?.rol !== 'SOLICITANTE' && (
                         <button style={s.btnProg} onClick={()=>handleEnProceso(sol)}>En proceso</button>
                       )}
-                      {sol.estado==='En proceso' && !soloMias && (
+                      {sol.estado==='En proceso' && user?.rol !== 'SOLICITANTE' && (
                         <button style={s.btnAtend} onClick={()=>setSelected(sol)}>✓ Atender</button>
                       )}
                       {sol.estado==='Atendida' && (

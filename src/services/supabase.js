@@ -109,6 +109,10 @@ export async function getSolicitudes(emailFilter = null) {
 
 export async function createSolicitud(data) {
   const ticket_id = generateTicketID(data.pais);
+  // Detectar flujo: UNACEM PERÚ = extendido, otras = directo
+  const flujo = data.unidadNegocio === 'UNACEM PERU' ? 'extendido' : 'directo';
+  const paso = flujo === 'extendido' ? 2 : 4; // Paso 2 si es extendido, Paso 4 si es directo
+  
   const { data: sol, error } = await supabase
     .from('solicitudes')
     .insert([{
@@ -120,7 +124,11 @@ export async function createSolicitud(data) {
       tipo_solicitud:     'Creación',
       denominacion:       data.denominacion,
       unidad_medida:      data.unidadMedida,
+      grupo_articulos:    data.grupoArticulos || '',
+      tipo_material:      data.tipoMaterial || '',
       texto_pedido:       data.textoPedido,
+      flujo:              flujo,
+      paso:               paso,
       estado:             'Pendiente',
       fecha_recepcion:    new Date().toISOString(),
     }])
@@ -138,6 +146,24 @@ export async function updateEstado(id, estado) {
   if (error) throw error;
 }
 
+export async function actualizarPaso(id, paso, asignado_a = null) {
+  const update = { paso };
+  if (asignado_a) update.asignado_a = asignado_a;
+  const { error } = await supabase
+    .from('solicitudes')
+    .update(update)
+    .eq('id', id);
+  if (error) throw error;
+}
+
+export async function aprobarPorLider(id, aprobado) {
+  const { error } = await supabase
+    .from('solicitudes')
+    .update({ aprobado_por_lider: aprobado })
+    .eq('id', id);
+  if (error) throw error;
+}
+
 export async function atenderSolicitud(id, atendido_por, cantidad_codigos) {
   const { error } = await supabase
     .from('solicitudes')
@@ -146,7 +172,52 @@ export async function atenderSolicitud(id, atendido_por, cantidad_codigos) {
       fecha_respuesta:  new Date().toISOString(),
       atendido_por,
       cantidad_codigos: parseInt(cantidad_codigos),
+      paso:             5,
     })
+    .eq('id', id);
+  if (error) throw error;
+}
+
+// ── NUEVAS FUNCIONES PARA EL FLUJO ──────────────────────
+export async function getSolicitudesPorPaso(paso) {
+  const { data, error } = await supabase
+    .from('solicitudes')
+    .select('*')
+    .eq('paso', paso)
+    .order('fecha_recepcion', { ascending: false });
+  if (error) throw error;
+  return data || [];
+}
+
+export async function getSolicitudesPorRol(rol) {
+  let pasos = [];
+  if (rol === 'GESTOR DE INVENTARIO') pasos = [2];
+  if (rol === 'LIDER DE CATEGORÍA') pasos = [3];
+  if (rol === 'DATA MASTER' || rol === 'ADMINISTRADOR') pasos = [4, 5];
+  if (rol === 'SOLICITANTE') pasos = [1, 2, 3, 4, 5];
+
+  const { data, error } = await supabase
+    .from('solicitudes')
+    .select('*')
+    .in('paso', pasos)
+    .order('fecha_recepcion', { ascending: false });
+  if (error) throw error;
+  return data || [];
+}
+
+export async function avanzarPaso(id, paso, datos = {}) {
+  const update = { paso, ...datos };
+  const { error } = await supabase
+    .from('solicitudes')
+    .update(update)
+    .eq('id', id);
+  if (error) throw error;
+}
+
+export async function rechazarSolicitud(id, motivo = '') {
+  const { error } = await supabase
+    .from('solicitudes')
+    .update({ paso: 1, estado: 'Rechazada', atendido_por: motivo })
     .eq('id', id);
   if (error) throw error;
 }

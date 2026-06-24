@@ -1,13 +1,13 @@
 // App.jsx
-import GestorInventario from './pages/GestorInventario';
-import LiderCategoria   from './pages/LiderCategoria';
-import BaseDatos        from './pages/BaseDatos';
 import { useState } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import Login          from './pages/Login';
 import Dashboard      from './pages/Dashboard';
 import NuevaSolicitud from './pages/NuevaSolicitud';
 import Usuarios       from './pages/Usuarios';
+import GestorInventario from './pages/GestorInventario';
+import LiderCategoria   from './pages/LiderCategoria';
+import BaseDatos        from './pages/BaseDatos';
 
 function SuccessModal({ ticketID, onClose }) {
   return (
@@ -33,52 +33,53 @@ const ms = {
   btn:    { padding:'11px 28px',background:'#2563eb',color:'#fff',border:'none',borderRadius:8,fontSize:14,fontWeight:700,cursor:'pointer' },
 };
 
-const NAV_ADMIN = [
-  { id:'dashboard',       icon:'📊', label:'Dashboard' },
-  { id:'gestorInventario', icon:'📦', label:'Gestor de Inventario' },
-  { id:'liderCategoria',   icon:'✓',  label:'Líder de Categoría' },
-  { id:'baseDatos',        icon:'💾', label:'Base de Datos' },
-  { id:'usuarios',         icon:'👥', label:'Usuarios' },
-];
-
-const NAV_USER = [
-  { id:'nueva',  icon:'➕', label:'Nueva solicitud' },
-  { id:'missol', icon:'📋', label:'Mis solicitudes' },
-];
-const TITLES = { dashboard:'Dashboard', solicitudes:'Solicitudes', nueva:'Nueva solicitud', missol:'Mis solicitudes', usuarios:'Usuarios' };
-
 function AppShell() {
   const { user, logout } = useAuth();
   const isAdmin = user?.rol === 'ADMINISTRADOR' || user?.rol === 'DATA MASTER';
   
-  // Mostrar solo vistas según el rol
+  // Determinar navegación según rol
   let navItems = [];
   if (isAdmin) {
-    navItems = NAV_ADMIN;
+    navItems = [
+      { id:'dashboard',       icon:'📊', label:'Dashboard' },
+      { id:'gestorInventario', icon:'📦', label:'Gestor de Inventario' },
+      { id:'liderCategoria',   icon:'✓',  label:'Líder de Categoría' },
+      { id:'baseDatos',        icon:'💾', label:'Base de Datos' },
+      { id:'usuarios',         icon:'👥', label:'Usuarios' },
+    ];
+  } else if (user?.rol === 'GESTOR DE INVENTARIO') {
+    navItems = [
+      { id:'gestorInventario', icon:'📦', label:'Inventario' },
+      { id:'missol', icon:'📋', label:'Mis solicitudes' },
+    ];
+  } else if (user?.rol === 'LIDER DE CATEGORÍA') {
+    navItems = [
+      { id:'liderCategoria', icon:'✓', label:'Aprobaciones' },
+      { id:'missol', icon:'📋', label:'Mi historial' },
+    ];
   } else {
     navItems = [
       { id:'nueva',  icon:'➕', label:'Nueva solicitud' },
       { id:'missol', icon:'📋', label:'Mis solicitudes' },
     ];
-    // Si es GESTOR DE INVENTARIO, mostrar su sección
-    if (user?.rol === 'GESTOR DE INVENTARIO') {
-      navItems = [
-        { id:'gestorInventario', icon:'📦', label:'Inventario' },
-        { id:'missol', icon:'📋', label:'Mis solicitudes' },
-      ];
-    }
-    // Si es LIDER DE CATEGORÍA, mostrar su sección
-    if (user?.rol === 'LIDER DE CATEGORÍA') {
-      navItems = [
-        { id:'liderCategoria', icon:'✓', label:'Aprobaciones' },
-        { id:'missol', icon:'📋', label:'Mi historial' },
-      ];
-    }
   }
 
-  const [page, setPage] = useState(isAdmin ? 'dashboard' : 'nueva');
+  const [page, setPage]   = useState(isAdmin ? 'dashboard' : 'nueva');
   const [ticket, setTicket] = useState(null);
   const initials = user?.nombre?.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase()||'?';
+
+  const getPageTitle = () => {
+    const titles = {
+      dashboard: 'Dashboard',
+      gestorInventario: 'Gestor de Inventario',
+      liderCategoria: 'Líder de Categoría',
+      baseDatos: 'Base de Datos',
+      nueva: 'Nueva solicitud',
+      missol: 'Mis solicitudes',
+      usuarios: 'Usuarios',
+    };
+    return titles[page] || '';
+  };
 
   return (
     <div style={sh.shell}>
@@ -114,25 +115,17 @@ function AppShell() {
       {/* MAIN */}
       <div style={sh.main}>
         <div style={sh.topbar}>
-          <div style={sh.pageTitle}>
-            {page === 'dashboard' && 'Dashboard'}
-            {page === 'gestorInventario' && 'Gestor de Inventario'}
-            {page === 'liderCategoria' && 'Líder de Categoría'}
-            {page === 'baseDatos' && 'Base de Datos'}
-            {page === 'nueva' && 'Nueva solicitud'}
-            {page === 'missol' && 'Mis solicitudes'}
-            {page === 'usuarios' && 'Usuarios'}
-          </div>
+          <div style={sh.pageTitle}>{getPageTitle()}</div>
           <div style={sh.av}>{initials}</div>
         </div>
         <div>
-          {page === 'dashboard' && <Dashboard />}
-          {page === 'gestorInventario' && <GestorInventario />}
-          {page === 'liderCategoria' && <LiderCategoria />}
-          {page === 'baseDatos' && <BaseDatos />}
-          {page === 'nueva' && <NuevaSolicitud onSuccess={id=>{setTicket(id);}} />}
-          {page === 'missol' && <Dashboard soloMias />}
-          {page === 'usuarios' && <Usuarios />}
+          {page==='dashboard'       && <Dashboard />}
+          {page==='gestorInventario' && <GestorInventario />}
+          {page==='liderCategoria'   && <LiderCategoria />}
+          {page==='baseDatos'        && <BaseDatos />}
+          {page==='nueva'            && <NuevaSolicitud onSuccess={id=>{setTicket(id);}} />}
+          {page==='missol'           && <Dashboard soloMias />}
+          {page==='usuarios'         && <Usuarios />}
         </div>
       </div>
 
