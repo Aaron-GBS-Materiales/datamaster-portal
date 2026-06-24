@@ -108,25 +108,24 @@ export async function getSolicitudes(emailFilter = null) {
 }
 
 export async function createSolicitud(data) {
-  const ticket_id = generateTicketID(data.pais);
-  // Detectar flujo: UNACEM PERÚ = extendido, otras = directo
-  const flujo = data.unidadNegocio === 'UNACEM PERU' ? 'extendido' : 'directo';
-  const paso = flujo === 'extendido' ? 2 : 4; // Paso 2 si es extendido, Paso 4 si es directo
+  // Obtener país del usuario (por defecto Perú)
+  const pais = data.pais || 'Perú';
+  const ticket_id = generateTicketID(pais);
   
-  const { data: sol, error } = await supabase
+  // Detectar flujo: UNACEM PERÚ = extendido, otras = directo
+  const flujo = data.unidad_negocio === 'UNACEM PERU' ? 'extendido' : 'directo';
+  const paso = flujo === 'extendido' ? 2 : 4;
+  
+  // 1. Crear solicitud principal
+  const { data: sol, error: errSol } = await supabase
     .from('solicitudes')
     .insert([{
       ticket_id,
-      email_solicitante:  data.email,
-      nombre_solicitante: data.nombre,
-      pais:               data.pais,
-      unidad_negocio:     data.unidadNegocio,
+      email_solicitante:  data.email_solicitante,
+      nombre_solicitante: data.nombre_solicitante,
+      pais:               pais,
+      unidad_negocio:     data.unidad_negocio,
       tipo_solicitud:     'Creación',
-      denominacion:       data.denominacion,
-      unidad_medida:      data.unidadMedida,
-      grupo_articulos:    data.grupoArticulos || '',
-      tipo_material:      data.tipoMaterial || '',
-      texto_pedido:       data.textoPedido,
       flujo:              flujo,
       paso:               paso,
       estado:             'Pendiente',
@@ -134,8 +133,27 @@ export async function createSolicitud(data) {
     }])
     .select()
     .single();
-  if (error) throw error;
-  return sol;
+    
+  if (errSol) throw errSol;
+
+  // 2. Crear posiciones
+  if (data.posiciones && data.posiciones.length > 0) {
+    const posicionesData = data.posiciones.map(p => ({
+      solicitud_id:   sol.id,
+      denominacion:   p.denominacion,
+      unidad_medida:  p.unidad_medida,
+      texto_pedido:   p.texto_pedido || '',
+      estado:         'Pendiente',
+    }));
+
+    const { error: errPos } = await supabase
+      .from('posiciones')
+      .insert(posicionesData);
+
+    if (errPos) throw errPos;
+  }
+
+  return sol.ticket_id;
 }
 
 export async function updateEstado(id, estado) {
@@ -239,4 +257,23 @@ export async function getSolicitudById(id) {
     .single();
   if (error) throw error;
   return data;
+}
+
+// ── POSICIONES ─────────────────────────────────────────────────
+export async function getPosicionesBySolicitud(solicitud_id) {
+  const { data, error } = await supabase
+    .from('posiciones')
+    .select('*')
+    .eq('solicitud_id', solicitud_id)
+    .order('created_at', { ascending: true });
+  if (error) throw error;
+  return data || [];
+}
+
+export async function updatePosicion(id, datos) {
+  const { error } = await supabase
+    .from('posiciones')
+    .update(datos)
+    .eq('id', id);
+  if (error) throw error;
 }
