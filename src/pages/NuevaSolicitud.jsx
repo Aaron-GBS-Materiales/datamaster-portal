@@ -1,99 +1,138 @@
 // pages/NuevaSolicitud.jsx
 import { useState } from 'react';
-import { useAuth } from '../context/AuthContext';
 import { createSolicitud } from '../services/supabase';
+import { useAuth } from '../context/AuthContext';
 import { UNIDADES } from '../constants/materiales';
 
 export default function NuevaSolicitud({ onSuccess }) {
   const { user } = useAuth();
-  const [form, setForm]       = useState({ denominacion:'', unidadMedida:'', textoPedido:'' });
-  const [loading, setLoading] = useState(false);
-  const [error, setError]     = useState('');
+  const [posiciones, setPosiciones] = useState([
+    { id: 1, denominacion: '', unidad_medida: '', texto_pedido: '' }
+  ]);
+  const [nextId, setNextId] = useState(2);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState('');
 
-  const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
+  const handleAddPosicion = () => {
+    setPosiciones([...posiciones, { id: nextId, denominacion: '', unidad_medida: '', texto_pedido: '' }]);
+    setNextId(nextId + 1);
+  };
 
-  async function handleSubmit(e) {
+  const handleRemovePosicion = (id) => {
+    if (posiciones.length > 1) {
+      setPosiciones(posiciones.filter(p => p.id !== id));
+    }
+  };
+
+  const handleChangePosicion = (id, field, value) => {
+    setPosiciones(posiciones.map(p => p.id === id ? {...p, [field]: value} : p));
+  };
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!form.denominacion || !form.unidadMedida || !form.textoPedido) {
-      setError('Completa todos los campos antes de enviar.'); return;
+    setError('');
+
+    if (posiciones.some(p => !p.denominacion || !p.unidad_medida)) {
+      setError('Completa todos los campos requeridos en cada posición');
+      return;
     }
-    setError(''); setLoading(true);
+
+    setSubmitting(true);
     try {
-      const sol = await createSolicitud({
-        email:         user.email,
-        nombre:        user.nombre,
-        pais:          user.pais,
-        unidadNegocio: user.unidadNegocio,
-        denominacion:  form.denominacion,
-        unidadMedida:  form.unidadMedida,
-        textoPedido:   form.textoPedido,
+      const ticketId = await createSolicitud({
+        nombre_solicitante: user?.nombre,
+        email_solicitante: user?.email,
+        unidad_negocio: user?.unidad_negocio,
+        posiciones: posiciones,
       });
-      onSuccess(sol.ticket_id);
-      setForm({ denominacion:'', unidadMedida:'', textoPedido:'' });
-    } catch {
-      setError('Error al enviar la solicitud. Intenta nuevamente.');
+      
+      onSuccess(ticketId);
+      setPosiciones([{ id: 1, denominacion: '', unidad_medida: '', texto_pedido: '' }]);
+      setNextId(2);
+    } catch (err) {
+      setError(err.message || 'Error al crear solicitud');
     }
-    setLoading(false);
-  }
+    setSubmitting(false);
+  };
 
   return (
     <div style={s.wrap}>
+      <h2 style={s.h2}>Nueva solicitud</h2>
+      <p style={s.sub}>Creación de código SAP</p>
+
       <div style={s.card}>
-        <div style={s.header}>
-          <div>
-            <h2 style={s.h2}>Nueva solicitud</h2>
-            <p style={s.headerSub}>Creación de código SAP</p>
-          </div>
-          <div style={s.userPill}>
-            <div style={s.avatar}>{user.nombre.charAt(0)}</div>
-            <div>
-              <div style={s.userName}>{user.nombre}</div>
-              <div style={s.userMeta}>{user.pais} · {user.unidadNegocio}</div>
+        <div style={s.infoBox}>
+          ℹ️ Puedes agregar múltiples materiales en una sola solicitud.
+        </div>
+
+        <form onSubmit={handleSubmit}>
+          {posiciones.map((pos, idx) => (
+            <div key={pos.id} style={s.posicionCard}>
+              <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:16}}>
+                <h3 style={s.posicionTitle}>Posición {idx + 1}</h3>
+                {posiciones.length > 1 && (
+                  <button
+                    type="button"
+                    style={s.btnRemove}
+                    onClick={() => handleRemovePosicion(pos.id)}>
+                    ✕ Eliminar
+                  </button>
+                )}
+              </div>
+
+              <div style={s.formGroup}>
+                <label style={s.label}>Denominación del material *</label>
+                <input
+                  type="text"
+                  style={s.input}
+                  placeholder="Ej: TUBO ACERO AL CARBONO SIN COSTURA 2\" SCH40"
+                  value={pos.denominacion}
+                  onChange={(e) => handleChangePosicion(pos.id, 'denominacion', e.target.value)}
+                />
+                <div style={s.hint}>Escribe el nombre lo más descriptivo posible.</div>
+              </div>
+
+              <div style={s.formGroup}>
+                <label style={s.label}>Unidad de medida *</label>
+                <select
+                  style={s.input}
+                  value={pos.unidad_medida}
+                  onChange={(e) => handleChangePosicion(pos.id, 'unidad_medida', e.target.value)}>
+                  <option value="">Seleccionar unidad...</option>
+                  {UNIDADES.map(u => (
+                    <option key={u} value={u}>{u}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div style={s.formGroup}>
+                <label style={s.label}>Texto de pedido de compra *</label>
+                <textarea
+                  style={{...s.input, minHeight: 80}}
+                  placeholder="Especificaciones técnicas, uso del material, proveedor referencial u otra información relevante..."
+                  value={pos.texto_pedido}
+                  onChange={(e) => handleChangePosicion(pos.id, 'texto_pedido', e.target.value)}
+                />
+              </div>
+
+              {idx < posiciones.length - 1 && <div style={s.divider} />}
             </div>
-          </div>
-        </div>
-
-        <div style={s.infoBanner}>
-          <span>ℹ️</span>
-          <span style={{fontSize:13, color:'#1e40af'}}>
-            Completa los datos del material. El Gestor de Inventario completará la información adicional.
-          </span>
-        </div>
-
-        <form onSubmit={handleSubmit} style={{padding:'20px 24px 24px'}}>
-          <div style={s.field}>
-            <label style={s.label}>Denominación del material <span style={{color:'#dc2626'}}>*</span></label>
-            <input style={s.input} type="text"
-              placeholder='Ej: TUBO ACERO AL CARBONO SIN COSTURA 2" SCH40'
-              value={form.denominacion} onChange={e => set('denominacion', e.target.value)} />
-            <span style={s.hint}>Escribe el nombre lo más descriptivo posible.</span>
-          </div>
-
-          <div style={s.field}>
-            <label style={s.label}>Unidad de medida <span style={{color:'#dc2626'}}>*</span></label>
-            <select style={s.select} value={form.unidadMedida} onChange={e => set('unidadMedida', e.target.value)}>
-              <option value="">Seleccionar unidad…</option>
-              {UNIDADES.map(u => <option key={u}>{u}</option>)}
-            </select>
-          </div>
-
-          <div style={s.field}>
-            <label style={s.label}>Texto de pedido de compra <span style={{color:'#dc2626'}}>*</span></label>
-            <textarea style={s.textarea} rows={5}
-              placeholder="Especificaciones técnicas, uso del material, proveedor referencial u otra información relevante…"
-              value={form.textoPedido} onChange={e => set('textoPedido', e.target.value)} />
-            <span style={s.hint}>Incluye toda la información técnica disponible.</span>
-          </div>
+          ))}
 
           {error && <div style={s.errorBox}>{error}</div>}
 
           <div style={s.actions}>
-            <button type="button" style={s.btnSecondary}
-              onClick={() => setForm({ denominacion:'', unidadMedida:'', textoPedido:'' })}>
-              Limpiar
+            <button
+              type="button"
+              style={s.btnAdd}
+              onClick={handleAddPosicion}>
+              ➕ Agregar posición
             </button>
-            <button style={s.btnPrimary} type="submit" disabled={loading}>
-              {loading ? 'Enviando…' : 'Enviar solicitud →'}
+            <button
+              type="submit"
+              style={s.btnSubmit}
+              disabled={submitting}>
+              {submitting ? 'Enviando...' : '✓ Enviar solicitud'}
             </button>
           </div>
         </form>
@@ -103,24 +142,21 @@ export default function NuevaSolicitud({ onSuccess }) {
 }
 
 const s = {
-  wrap:       { padding:28, maxWidth:720, margin:'0 auto' },
-  card:       { background:'#fff', borderRadius:12, border:'1px solid #e2e5ef', boxShadow:'0 1px 3px rgba(0,0,0,.06)', overflow:'hidden' },
-  header:     { padding:'20px 24px', borderBottom:'1px solid #e2e5ef', display:'flex', alignItems:'center', justifyContent:'space-between', gap:16, flexWrap:'wrap' },
-  h2:         { fontSize:18, fontWeight:800, color:'#0f1d3a', margin:0 },
-  headerSub:  { fontSize:12, color:'#6b7280', marginTop:3 },
-  userPill:   { display:'flex', alignItems:'center', gap:10, background:'#f5f6fa', borderRadius:10, padding:'8px 14px', border:'1px solid #e2e5ef' },
-  avatar:     { width:32, height:32, borderRadius:'50%', background:'#2563eb', color:'#fff', display:'flex', alignItems:'center', justifyContent:'center', fontSize:14, fontWeight:700 },
-  userName:   { fontSize:13, fontWeight:600, color:'#111827' },
-  userMeta:   { fontSize:11, color:'#6b7280' },
-  infoBanner: { margin:'16px 24px 0', background:'#eff4ff', border:'1px solid #bfdbfe', borderRadius:8, padding:'10px 14px', display:'flex', alignItems:'center', gap:10 },
-  field:      { marginBottom:18 },
-  label:      { display:'block', fontSize:13, fontWeight:600, color:'#374151', marginBottom:7 },
-  input:      { width:'100%', padding:'11px 14px', border:'1.5px solid #e2e5ef', borderRadius:8, fontSize:14, color:'#111827', outline:'none', boxSizing:'border-box' },
-  select:     { width:'100%', padding:'11px 14px', border:'1.5px solid #e2e5ef', borderRadius:8, fontSize:14, color:'#111827', outline:'none', boxSizing:'border-box', background:'#fff' },
-  textarea:   { width:'100%', padding:'11px 14px', border:'1.5px solid #e2e5ef', borderRadius:8, fontSize:14, color:'#111827', outline:'none', boxSizing:'border-box', resize:'vertical', fontFamily:'Inter,sans-serif', lineHeight:1.6 },
-  hint:       { fontSize:11, color:'#9ca3af', marginTop:5, display:'block' },
-  errorBox:   { background:'#fef2f2', border:'1px solid #fecaca', borderRadius:8, padding:'10px 14px', fontSize:13, color:'#dc2626', marginBottom:14 },
-  actions:    { display:'flex', justifyContent:'flex-end', gap:10, paddingTop:20, borderTop:'1px solid #e2e5ef', marginTop:8 },
-  btnPrimary: { padding:'10px 24px', background:'#2563eb', color:'#fff', border:'none', borderRadius:8, fontSize:14, fontWeight:700, cursor:'pointer' },
-  btnSecondary:{ padding:'10px 20px', background:'#f5f6fa', color:'#374151', border:'1.5px solid #e2e5ef', borderRadius:8, fontSize:14, fontWeight:600, cursor:'pointer' },
+  wrap:          { padding:28 },
+  h2:            { fontSize:18, fontWeight:800, color:'#0f1d3a', margin:0 },
+  sub:           { fontSize:12, color:'#6b7280', marginTop:3, marginBottom:24 },
+  card:          { background:'#fff', border:'1px solid #e2e5ef', borderRadius:12, padding:24 },
+  infoBox:       { background:'#eff4ff', border:'1px solid #bfdbfe', borderRadius:8, padding:12, fontSize:13, color:'#2563eb', marginBottom:24 },
+  posicionCard:  { paddingBottom:24 },
+  posicionTitle: { fontSize:14, fontWeight:700, color:'#0f1d3a', margin:0 },
+  formGroup:     { marginBottom:18 },
+  label:         { display:'block', fontSize:13, fontWeight:600, color:'#0f1d3a', marginBottom:8 },
+  input:         { width:'100%', padding:'10px 12px', border:'1px solid #d1d5db', borderRadius:8, fontSize:13, fontFamily:'inherit', boxSizing:'border-box' },
+  hint:          { fontSize:12, color:'#9ca3af', marginTop:5 },
+  divider:       { height:'1px', background:'#e2e5ef', margin:'24px 0' },
+  actions:       { display:'flex', gap:12, marginTop:28 },
+  btnAdd:        { padding:'10px 16px', background:'#f0f2f8', color:'#2563eb', border:'1px solid #d1d5db', borderRadius:8, fontSize:13, fontWeight:600, cursor:'pointer' },
+  btnRemove:     { padding:'6px 12px', background:'#fef2f2', color:'#dc2626', border:'1px solid #fecaca', borderRadius:6, fontSize:12, fontWeight:600, cursor:'pointer' },
+  btnSubmit:     { padding:'10px 24px', background:'#2563eb', color:'#fff', border:'none', borderRadius:8, fontSize:13, fontWeight:700, cursor:'pointer' },
+  errorBox:      { background:'#fef2f2', border:'1px solid #fecaca', borderRadius:8, padding:12, color:'#dc2626', fontSize:13, marginBottom:16 },
 };
