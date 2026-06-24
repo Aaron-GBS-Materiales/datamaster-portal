@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { getSolicitudesPorPaso, avanzarPaso, rechazarSolicitud, getPosicionesBySolicitud } from '../services/supabase';
+import { getSolicitudesPorPaso, avanzarPaso, rechazarSolicitud, 
+         getPosicionesBySolicitud, actualizarPosicion } from '../services/supabase';
 import { useAuth } from '../context/AuthContext';
 import { TIPOS_MATERIAL, GRUPOS_ARTICULOS } from '../constants/materiales';
 
