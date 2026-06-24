@@ -120,7 +120,7 @@ const [page, setPage]   = useState(defaultPage);
           <div style={sh.av}>{initials}</div>
         </div>
         <div>
-{page==='dashboard'       && <Dashboard />}
+        {page==='dashboard'       && <Dashboard />}
           {page==='gestorInventario' && <GestorInventario />}
           {page==='liderCategoria'   && <LiderCategoria />}
           {page==='baseDatos'        && <BaseDatos />}
