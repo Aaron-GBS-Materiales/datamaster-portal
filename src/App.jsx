@@ -64,8 +64,7 @@ function AppShell() {
     ];
   }
 
-const defaultPage = isAdmin ? 'dashboard' : (user?.rol === 'GESTOR DE INVENTARIO' ? 'gestorInventario' : (user?.rol === 'LIDER DE CATEGORÍA' ? 'liderCategoria' : 'nueva'));
-const [page, setPage]   = useState(defaultPage);
+const [page, setPage]   = useState(isAdmin ? 'dashboard' : 'nueva');
   const [ticket, setTicket] = useState(null);
   const initials = user?.nombre?.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase()||'?';
 
