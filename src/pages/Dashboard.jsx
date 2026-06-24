@@ -1,6 +1,6 @@
 // pages/Dashboard.jsx
 import { useState, useEffect } from 'react';
-import { getSolicitudesPorPaso, getSolicitudById } from '../services/supabase';
+import { getSolicitudesPorPaso, getSolicitudById, getPosicionesBySolicitud } from '../services/supabase';
 import { useAuth } from '../context/AuthContext';
 
 const FLAG = { Perú:'🇵🇪', Colombia:'🇨🇴', Chile:'🇨🇱', Ecuador:'🇪🇨', Bolivia:'🇧🇴' };
@@ -50,13 +50,14 @@ async function load() {
   setLoading(false);
 }
 
-  async function handleVerDetalle(id) {
-    try {
-      const det = await getSolicitudById(id);
-      setDetalle(det);
-      setSelected(id);
-    } catch {}
-  }
+async function handleVerDetalle(id) {
+  try {
+    const det = await getSolicitudById(id);
+    const pos = await getPosicionesBySolicitud(id);
+    setDetalle({...det, posiciones: pos});
+    setSelected(id);
+  } catch {}
+}
 
   const pendientes = solicitudes.filter(s => s.paso < 5);
   const completadas = solicitudes.filter(s => s.paso === 5);
@@ -154,48 +155,31 @@ async function load() {
             <h3 style={s.mTitle}>Detalle de Solicitud</h3>
             <p style={s.mSub}>{detalle.ticket_id}</p>
 
-            <div style={s.seccion}>
-              <div style={s.seccionTitle}>Solicitante</div>
-              <div style={s.grid2}>
-                <div>
-                  <div style={s.label}>Nombre</div>
-                  <div style={s.valor}>{detalle.nombre_solicitante}</div>
-                </div>
-                <div>
-                  <div style={s.label}>Correo</div>
-                  <div style={s.valor}>{detalle.email_solicitante}</div>
-                </div>
-              </div>
-            </div>
-
-            <div style={s.seccion}>
-              <div style={s.seccionTitle}>Material</div>
-              <div style={s.grid2}>
-                <div>
-                  <div style={s.label}>Denominación</div>
-                  <div style={s.valor}>{detalle.denominacion}</div>
-                </div>
-                <div>
-                  <div style={s.label}>Unidad de Medida</div>
-                  <div style={s.valor}>{detalle.unidad_medida}</div>
-                </div>
-              </div>
-              <div style={{marginTop: 12}}>
-                <div style={s.label}>Tipo de Material</div>
-                <div style={s.valor}>{detalle.tipo_material || '—'}</div>
-              </div>
-              <div style={{marginTop: 12}}>
-                <div style={s.label}>Grupo de Artículos</div>
-                <div style={s.valor}>{detalle.grupo_articulos || '—'}</div>
-              </div>
-            </div>
-
-            <div style={s.seccion}>
-              <div style={s.seccionTitle}>Especificaciones</div>
-              <div style={s.label}>Texto de Pedido</div>
-              <div style={{...s.valor, whiteSpace: 'pre-wrap', maxHeight: 150, overflow: 'auto'}}>
-                {detalle.texto_pedido}
-              </div>
+<div style={s.seccion}>
+              <div style={s.seccionTitle}>Posiciones</div>
+              {detalle.posiciones && detalle.posiciones.length > 0 ? (
+                detalle.posiciones.map((pos, idx) => (
+                  <div key={pos.id} style={{marginBottom: 16, paddingBottom: 16, borderBottom: '1px solid #e2e5ef'}}>
+                    <div style={{fontSize: 12, fontWeight: 600, color: '#9ca3af', marginBottom: 8}}>Posicion {idx + 1}</div>
+                    <div style={s.grid2}>
+                      <div>
+                        <div style={s.label}>Denominacion</div>
+                        <div style={s.valor}>{pos.denominacion}</div>
+                      </div>
+                      <div>
+                        <div style={s.label}>Unidad de Medida</div>
+                        <div style={s.valor}>{pos.unidad_medida}</div>
+                      </div>
+                    </div>
+                    <div style={{marginTop: 12}}>
+                      <div style={s.label}>Texto de Pedido</div>
+                      <div style={{...s.valor, whiteSpace: 'pre-wrap', maxHeight: 100, overflow: 'auto'}}>{pos.texto_pedido}</div>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div style={{color: '#9ca3af', fontSize: 13}}>Sin posiciones</div>
+              )}
             </div>
 
             <div style={s.seccion}>
