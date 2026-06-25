@@ -34,14 +34,15 @@ export default function Login() {
       const valid = await validateOTP(email.trim(), otp.trim());
       if (!valid) { setError('Código incorrecto o expirado.'); setLoading(false); return; }
 const user = await getUserByEmail(email.trim());
-      login({
-        id:               user.id,
-        email:            user.email,
-        nombre:           user.nombre,
-        pais:             user.pais,
-        unidad_negocio:   user.unidad_negocio,
-        rol:              user.rol,
-      });
+login({
+  id:               user.id,
+  email:            user.email,
+  nombre:           user.nombre,
+  pais:             user.pais,
+  unidad_negocio:   user.unidad_negocio,
+  rol:              user.rol,
+  categorias:       user.categorias || [],
+});
     } catch {
       setError('Error al validar el código.');
     }
