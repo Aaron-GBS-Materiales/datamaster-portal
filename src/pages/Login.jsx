@@ -27,27 +27,27 @@ export default function Login() {
     setLoading(false);
   }
 
-  async function handleOTPSubmit(e) {
-    e.preventDefault();
-    setError(''); setLoading(true);
-    try {
-      const valid = await validateOTP(email.trim(), otp.trim());
-      if (!valid) { setError('Código incorrecto o expirado.'); setLoading(false); return; }
-const user = await getUserByEmail(email.trim());
-login({
-  id:               user.id,
-  email:            user.email,
-  nombre:           user.nombre,
-  pais:             user.pais,
-  unidad_negocio:   user.unidad_negocio,
-  rol:              user.rol,
-  categorias:       user.categorias || [],
-});
-    } catch {
-      setError('Error al validar el código.');
-    }
-    setLoading(false);
+async function handleOTPSubmit(e) {
+  e.preventDefault();
+  setError(''); setLoading(true);
+  try {
+    const valid = await validateOTP(email.trim(), otp.trim());
+    if (!valid) { setError('Código incorrecto o expirado.'); setLoading(false); return; }
+    const user = await getUserByEmail(email.trim());
+    login({
+      id:             user.id,
+      email:          user.email,
+      nombre:         user.nombre,
+      pais:           user.pais,
+      unidad_negocio: user.unidad_negocio,
+      rol:            user.rol,
+      categorias:     user.categorias || [],
+    });
+  } catch {
+    setError('Error al validar el código.');
   }
+  setLoading(false);
+}
 
   return (
     <div style={s.bg}>
