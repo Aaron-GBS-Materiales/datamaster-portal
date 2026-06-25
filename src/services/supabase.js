@@ -315,3 +315,25 @@ export async function getNombreUsuario(email) {
   if (error) return email; // fallback: muestra email si no encuentra
   return data?.nombre || email;
 }
+
+// Verifica si todas las posiciones de una solicitud tienen estado_gestor = 'Revisada'
+export async function todasPosicionesRevisadas(solicitudId) {
+  const { data, error } = await supabase
+    .from('posiciones')
+    .select('estado_gestor')
+    .eq('solicitud_id', solicitudId)
+    .neq('estado', 'Rechazada'); // excluir rechazadas
+  if (error) throw error;
+  return data.length > 0 && data.every(p => p.estado_gestor === 'Revisada');
+}
+
+// Verifica si todas las posiciones de una solicitud tienen estado_lider = 'Aprobada'
+export async function todasPosicionesAprobadas(solicitudId) {
+  const { data, error } = await supabase
+    .from('posiciones')
+    .select('estado_lider')
+    .eq('solicitud_id', solicitudId)
+    .neq('estado', 'Rechazada'); // excluir rechazadas
+  if (error) throw error;
+  return data.length > 0 && data.every(p => p.estado_lider === 'Aprobada');
+}
