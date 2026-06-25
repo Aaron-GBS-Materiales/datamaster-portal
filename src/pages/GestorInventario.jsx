@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { getSolicitudesPorPaso, avanzarPaso, rechazarSolicitud, 
-         getPosicionesBySolicitud, actualizarPosicion,
-         todasPosicionesRevisadas } from '../services/supabase';
+         getPosicionesBySolicitud, actualizarPosicion } from '../services/supabase';
 import { useAuth } from '../context/AuthContext';
 import { TIPOS_MATERIAL, GRUPOS_ARTICULOS } from '../constants/materiales';
 import { EstadoBadge } from '../utils/estadoHelper';
@@ -60,6 +59,8 @@ export default function GestorInventario() {
   async function load() {
     setLoading(true);
     try {
+      // Cargar paso 2 Y paso 3 — porque cuando un gestor ya envió,
+      // la solicitud pasa a paso 3 pero el otro gestor aún debe revisarla
       const paso2 = await getSolicitudesPorPaso(2);
       const paso3 = await getSolicitudesPorPaso(3);
       const paso4 = await getSolicitudesPorPaso(4);
@@ -73,8 +74,21 @@ export default function GestorInventario() {
         const dataFiltrada = await Promise.all(
           data.map(async sol => {
             const pos = await getPosicionesBySolicitud(sol.id);
-            const tieneMiCategoria = pos.some(p => categoriaGestor.includes(p.categoria));
-            return tieneMiCategoria ? sol : null;
+            // Mis posiciones: de mi categoría Y aún no revisadas por mí
+            const misPendientes = pos.filter(p =>
+              categoriaGestor.includes(p.categoria) &&
+              p.estado_gestor !== 'Revisada' &&
+              p.estado !== 'Rechazada'
+            );
+            const todasMisPosiciones = pos.filter(p =>
+              categoriaGestor.includes(p.categoria)
+            );
+            if (todasMisPosiciones.length === 0) return null;
+            return {
+              ...sol,
+              _misPendientes: misPendientes,
+              _todasMisPosiciones: todasMisPosiciones,
+            };
           })
         );
         data = dataFiltrada.filter(Boolean);
@@ -85,29 +99,33 @@ export default function GestorInventario() {
     setLoading(false);
   }
 
-async function handleRevisar(sol) {
-  const todasPos = await getPosicionesBySolicitud(sol.id);
+  async function handleRevisar(sol) {
+    const todasPos = await getPosicionesBySolicitud(sol.id);
+    const categoriaGestor = user?.categorias || [];
 
-  // Filtrar solo las posiciones de las categorías del gestor
-  const categoriaGestor = user?.categorias || [];
-  const posFiltradas = categoriaGestor.length > 0
-    ? todasPos.filter(p => categoriaGestor.includes(p.categoria))
-    : todasPos;
+    // Mostrar solo mis posiciones pendientes de revisar
+    const posFiltradas = categoriaGestor.length > 0
+      ? todasPos.filter(p =>
+          categoriaGestor.includes(p.categoria) &&
+          p.estado_gestor !== 'Revisada' &&
+          p.estado !== 'Rechazada'
+        )
+      : todasPos;
 
-  setSelected({...sol, posiciones: posFiltradas});
+    setSelected({...sol, posiciones: posFiltradas});
 
-  const initForm = {};
-  posFiltradas.forEach(p => {
-    initForm[p.id] = {
-      tipoMaterial:   p.tipo_material || '',
-      grupoArticulos: p.grupo_articulos || '',
-      rechazada:      p.estado === 'Rechazada',
-      motivoRechazo:  '',
-      mostrarRechazo: false,
-    };
-  });
-  setFormPosiciones(initForm);
-}
+    const initForm = {};
+    posFiltradas.forEach(p => {
+      initForm[p.id] = {
+        tipoMaterial:   p.tipo_material || '',
+        grupoArticulos: p.grupo_articulos || '',
+        rechazada:      false,
+        motivoRechazo:  '',
+        mostrarRechazo: false,
+      };
+    });
+    setFormPosiciones(initForm);
+  }
 
   function handleChangePosicion(posId, field, value) {
     setFormPosiciones(prev => ({
@@ -134,7 +152,12 @@ async function handleRevisar(sol) {
     if (!motivo) return;
     setSaving(true);
     try {
-      await actualizarPosicion(posId, { estado: 'Rechazada', motivo_rechazo: motivo });
+      await actualizarPosicion(posId, {
+        estado: 'Rechazada',
+        motivo_rechazo: motivo,
+        estado_gestor: 'Revisada',
+        asignado_gestor: user.email,
+      });
       setFormPosiciones(prev => ({
         ...prev,
         [posId]: { ...prev[posId], rechazada: true, mostrarRechazo: false }
@@ -152,28 +175,32 @@ async function handleRevisar(sol) {
     setSaving(false);
   }
 
-async function handleEnviarALider() {
-  if (!todasAprobablesCompletas()) return;
-  setSaving(true);
-  try {
-    await Promise.all(
-      posicionesAprobables().map(p =>
-        actualizarPosicion(p.id, {
-          tipo_material:    formPosiciones[p.id].tipoMaterial,
-          grupo_articulos:  formPosiciones[p.id].grupoArticulos,
-          estado:           'Aprobada',
-          estado_gestor:    'Revisada',
-          asignado_gestor:  user.email, // ← guardar email del gestor por posición
-        })
-      )
-    );
-    await avanzarPaso(selected.id, 3, { asignado_a: user.email });
-    setSelected(null);
-    setFormPosiciones({});
-    load();
-  } catch {}
-  setSaving(false);
-}
+  async function handleEnviarALider() {
+    if (!todasAprobablesCompletas()) return;
+    setSaving(true);
+    try {
+      // Guardar tipo, grupo y marcar revisada con email del gestor
+      await Promise.all(
+        posicionesAprobables().map(p =>
+          actualizarPosicion(p.id, {
+            tipo_material:   formPosiciones[p.id].tipoMaterial,
+            grupo_articulos: formPosiciones[p.id].grupoArticulos,
+            estado:          'Aprobada',
+            estado_gestor:   'Revisada',
+            asignado_gestor: user.email,
+          })
+        )
+      );
+
+      // Avanzar al paso 3 siempre — el líder filtra por sus categorías
+      await avanzarPaso(selected.id, 3, { asignado_a: user.email });
+
+      setSelected(null);
+      setFormPosiciones({});
+      load();
+    } catch {}
+    setSaving(false);
+  }
 
   async function handleRechazarTodo() {
     setSaving(true);
@@ -186,8 +213,17 @@ async function handleEnviarALider() {
     setSaving(false);
   }
 
-  const pendientes  = solicitudes.filter(s => s.paso === 2);
-  const procesadas  = solicitudes.filter(s => s.paso > 2);
+  // Pendientes: solicitudes que tienen mis posiciones SIN revisar
+  const pendientes = solicitudes.filter(s =>
+    (s._misPendientes || []).length > 0
+  );
+
+  // Procesadas: solicitudes donde todas mis posiciones ya fueron revisadas
+  const procesadas = solicitudes.filter(s =>
+    (s._misPendientes || []).length === 0 &&
+    (s._todasMisPosiciones || []).length > 0
+  );
+
   const posRechazadas = selected ? Object.values(formPosiciones).filter(f => f.rechazada).length : 0;
   const posAprobables = selected ? posicionesAprobables().length : 0;
 
@@ -201,7 +237,7 @@ async function handleEnviarALider() {
         <div style={s.header}>
           <div>
             <h2 style={s.h2}>Pendientes de revisar</h2>
-            <p style={s.sub}>Paso 2: Completa información del material</p>
+            <p style={s.sub}>Completa información del material en tus posiciones</p>
           </div>
           <span style={{fontSize:13, color:'#9ca3af'}}>{pendientes.length} pendientes</span>
         </div>
@@ -232,7 +268,7 @@ async function handleEnviarALider() {
                     <td style={{...s.td, textAlign:'center'}}>
                       <span style={{background:'#f5f6fa', border:'1px solid #e2e5ef', borderRadius:8,
                         padding:'2px 10px', fontSize:12, fontWeight:700, color:'#374151'}}>
-                        {sol.posiciones_count ?? '—'}
+                        {(sol._misPendientes || []).length}
                       </span>
                     </td>
                     <td style={{...s.td, fontSize:11, color:'#374151', whiteSpace:'nowrap'}}>
@@ -322,11 +358,10 @@ async function handleEnviarALider() {
               </div>
             </div>
 
-            {/* Aviso de posiciones filtradas */}
             {user?.categorias?.length > 0 && (
               <div style={{background:'#eff4ff', border:'1px solid #bfdbfe', borderRadius:8,
                 padding:'8px 12px', fontSize:12, color:'#2563eb', marginBottom:16}}>
-                📋 Mostrando solo las posiciones de tus categorías asignadas:
+                📋 Mostrando tus posiciones pendientes de revisar:
                 <strong> {user.categorias.join(', ')}</strong>
               </div>
             )}
@@ -352,7 +387,7 @@ async function handleEnviarALider() {
 
             <div style={s.posicionesBox}>
               <div style={{fontSize:12, fontWeight:700, color:'#0f1d3a', marginBottom:12}}>
-                Posiciones asignadas ({selected.posiciones?.length || 0})
+                Posiciones a revisar ({selected.posiciones?.length || 0})
               </div>
 
               {selected.posiciones && selected.posiciones.map((pos, idx) => {
@@ -372,7 +407,6 @@ async function handleEnviarALider() {
                         <span style={{fontSize:11, fontWeight:700, color:'#6b7280', letterSpacing:'.5px'}}>
                           POSICIÓN {idx + 1}
                         </span>
-                        {/* Badge de categoría */}
                         {pos.categoria && (
                           <span style={{fontSize:10, fontWeight:600, padding:'1px 6px', borderRadius:8,
                             background:'#ede9fe', color:'#7c3aed'}}>
