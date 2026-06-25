@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { getSolicitudesPorPaso, avanzarPaso, rechazarSolicitud, 
-         getPosicionesBySolicitud, actualizarPosicion } from '../services/supabase';
+         getPosicionesBySolicitud, actualizarPosicion,
+         todasPosicionesRevisadas } from '../services/supabase';
 import { useAuth } from '../context/AuthContext';
 import { TIPOS_MATERIAL, GRUPOS_ARTICULOS } from '../constants/materiales';
 import { EstadoBadge } from '../utils/estadoHelper';
@@ -151,26 +152,38 @@ async function handleRevisar(sol) {
     setSaving(false);
   }
 
-  async function handleEnviarALider() {
-    if (!todasAprobablesCompletas()) return;
-    setSaving(true);
-    try {
-      await Promise.all(
-        posicionesAprobables().map(p =>
-          actualizarPosicion(p.id, {
-            tipo_material:   formPosiciones[p.id].tipoMaterial,
-            grupo_articulos: formPosiciones[p.id].grupoArticulos,
-            estado:          'Aprobada',
-          })
-        )
-      );
+async function handleEnviarALider() {
+  if (!todasAprobablesCompletas()) return;
+  setSaving(true);
+  try {
+    // 1. Guardar tipo, grupo y marcar estado_gestor = 'Revisada' en mis posiciones
+    await Promise.all(
+      posicionesAprobables().map(p =>
+        actualizarPosicion(p.id, {
+          tipo_material:   formPosiciones[p.id].tipoMaterial,
+          grupo_articulos: formPosiciones[p.id].grupoArticulos,
+          estado:          'Aprobada',
+          estado_gestor:   'Revisada',
+        })
+      )
+    );
+
+    // 2. Verificar si TODAS las posiciones de la solicitud ya fueron revisadas
+    const todasListas = await todasPosicionesRevisadas(selected.id);
+
+    if (todasListas) {
+      // Todas las categorías fueron revisadas → avanzar solicitud al paso 3
       await avanzarPaso(selected.id, 3, { asignado_a: user.email });
-      setSelected(null);
-      setFormPosiciones({});
-      load();
-    } catch {}
-    setSaving(false);
-  }
+    }
+    // Si no todas están listas, la solicitud se queda en paso 2
+    // hasta que el otro gestor también revise sus posiciones
+
+    setSelected(null);
+    setFormPosiciones({});
+    load();
+  } catch {}
+  setSaving(false);
+}
 
   async function handleRechazarTodo() {
     setSaving(true);
