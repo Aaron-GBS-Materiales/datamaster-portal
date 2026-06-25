@@ -58,39 +58,39 @@ export default function LiderCategoria() {
     return () => clearInterval(interval);
   }, []);
 
-  async function load() {
-    setLoading(true);
-    try {
-      const paso3 = await getSolicitudesPorPaso(3);
-      const paso4 = await getSolicitudesPorPaso(4);
-      const paso5 = await getSolicitudesPorPaso(5);
-      let todas = [...paso3, ...paso4, ...paso5];
+async function load() {
+  setLoading(true);
+  try {
+    const paso3 = await getSolicitudesPorPaso(3);
+    const paso4 = await getSolicitudesPorPaso(4);
+    const paso5 = await getSolicitudesPorPaso(5);
+    let todas = [...paso3, ...paso4, ...paso5];
 
-      // Filtrar solicitudes que tengan al menos una posición
-      // de las categorías del líder
-      const categoriasLider = user?.categorias;
-      if (categoriasLider && categoriasLider.length > 0) {
-        const dataFiltrada = await Promise.all(
-          todas.map(async sol => {
-            const pos = await getPosicionesBySolicitud(sol.id);
-            const tieneMiCategoria = pos.some(p => categoriasLider.includes(p.categoria));
-            return tieneMiCategoria ? sol : null;
-          })
-        );
-        todas = dataFiltrada.filter(Boolean);
-      }
+    // Filtrar solicitudes que tengan al menos una posición de mis categorías
+    const categoriasLider = user?.categorias;
+    if (categoriasLider && categoriasLider.length > 0) {
+      const dataFiltrada = await Promise.all(
+        todas.map(async sol => {
+          const pos = await getPosicionesBySolicitud(sol.id);
+          const misPosiciones = pos.filter(p => categoriasLider.includes(p.categoria));
+          if (misPosiciones.length === 0) return null;
+          return { ...sol, _misPosiciones: misPosiciones };
+        })
+      );
+      todas = dataFiltrada.filter(Boolean);
+    }
 
-      setSolicitudes(todas);
+    setSolicitudes(todas);
 
-      const emailsUnicos = [...new Set(todas.map(s => s.asignado_a).filter(Boolean))];
-      const nombres = {};
-      await Promise.all(emailsUnicos.map(async email => {
-        nombres[email] = await getNombreUsuario(email);
-      }));
-      setNombresGestores(nombres);
-    } catch {}
-    setLoading(false);
-  }
+    const emailsUnicos = [...new Set(todas.map(s => s.asignado_a).filter(Boolean))];
+    const nombres = {};
+    await Promise.all(emailsUnicos.map(async email => {
+      nombres[email] = await getNombreUsuario(email);
+    }));
+    setNombresGestores(nombres);
+  } catch {}
+  setLoading(false);
+}
 
   async function handleRevisar(sol) {
     const todasPos = await getPosicionesBySolicitud(sol.id);
@@ -199,8 +199,17 @@ async function handleAprobarTodo() {
     return nombresGestores[email] || email.split('@')[0];
   }
 
-  const pendientes  = solicitudes.filter(s => s.paso === 3);
-  const procesadas  = solicitudes.filter(s => s.paso > 3);
+const pendientes = solicitudes.filter(s => {
+  if (s.paso !== 3) return false;
+  const misPosiciones = s._misPosiciones || [];
+  return misPosiciones.some(p => p.estado_lider !== 'Aprobada');
+});
+
+const procesadas = solicitudes.filter(s => {
+  if (s.paso > 3) return true;
+  const misPosiciones = s._misPosiciones || [];
+  return misPosiciones.length > 0 && misPosiciones.every(p => p.estado_lider === 'Aprobada');
+});
   const posRechazadas = selected ? Object.values(formPosiciones).filter(f => f.rechazada).length : 0;
   const posAprobables = selected ? posicionesAprobables().length : 0;
 
