@@ -54,12 +54,9 @@ export async function toggleUserActivo(id, activo) {
 
 // ── OTP ───────────────────────────────────────────────────────
 export async function createOTP(email) {
-  // Limpiar OTPs anteriores del mismo email
   await supabase.from('codigos_otp').delete().eq('email', email);
-
   const codigo  = Math.floor(100000 + Math.random() * 900000).toString();
   const expira  = new Date(Date.now() + 10 * 60 * 1000).toISOString();
-
   const { error } = await supabase
     .from('codigos_otp')
     .insert([{ email: email.toLowerCase().trim(), codigo, expira, usado: false }]);
@@ -75,10 +72,8 @@ export async function validateOTP(email, codigo) {
     .eq('codigo', codigo.trim())
     .eq('usado', false)
     .single();
-
   if (error || !data) return false;
   if (new Date(data.expira) < new Date()) return false;
-
   await supabase.from('codigos_otp').update({ usado: true }).eq('id', data.id);
   return true;
 }
@@ -100,9 +95,7 @@ export async function getSolicitudes(emailFilter = null) {
     .from('solicitudes')
     .select('*')
     .order('fecha_recepcion', { ascending: false });
-
   if (emailFilter) query = query.eq('email_solicitante', emailFilter);
-
   const { data, error } = await query;
   if (error) throw error;
   return data || [];
@@ -114,7 +107,6 @@ export async function createSolicitud(data) {
   const flujo = data.unidad_negocio === 'UNACEM PERU' ? 'extendido' : 'directo';
   const paso  = flujo === 'extendido' ? 2 : 4;
 
-  // 1. Crear solicitud principal
   const { data: sol, error: errSol } = await supabase
     .from('solicitudes')
     .insert([{
@@ -133,7 +125,6 @@ export async function createSolicitud(data) {
     .single();
   if (errSol) throw errSol;
 
-  // 2. Crear posiciones — cada una con su categoría
   if (data.posiciones && data.posiciones.length > 0) {
     const posicionesData = data.posiciones.map(p => ({
       solicitud_id:  sol.id,
@@ -151,6 +142,7 @@ export async function createSolicitud(data) {
 
   return sol.ticket_id;
 }
+
 export async function updateEstado(id, estado) {
   const { error } = await supabase
     .from('solicitudes')
@@ -191,7 +183,7 @@ export async function atenderSolicitud(id, atendido_por, codigoMaterial) {
   if (error) throw error;
 }
 
-// ── NUEVAS FUNCIONES PARA EL FLUJO ──────────────────────
+// ── FLUJO ──────────────────────────────────────────────────────
 export async function getSolicitudesPorPaso(paso) {
   const { data, error } = await supabase
     .from('solicitudes')
@@ -199,8 +191,6 @@ export async function getSolicitudesPorPaso(paso) {
     .eq('paso', paso)
     .order('fecha_recepcion', { ascending: false });
   if (error) throw error;
-
-  // Normalizar: convertir posiciones:[{count:N}] → posiciones_count: N
   return (data || []).map(sol => ({
     ...sol,
     posiciones_count: sol.posiciones?.[0]?.count ?? 0,
@@ -213,7 +203,6 @@ export async function getSolicitudesPorRol(rol) {
   if (rol === 'LIDER DE CATEGORÍA') pasos = [3];
   if (rol === 'DATA MASTER' || rol === 'ADMINISTRADOR') pasos = [4, 5];
   if (rol === 'SOLICITANTE') pasos = [1, 2, 3, 4, 5];
-
   const { data, error } = await supabase
     .from('solicitudes')
     .select('*')
@@ -294,7 +283,6 @@ export async function actualizarPosicion(posicionId, datos) {
   return data;
 }
 
-// Obtener gestores por categoría
 export async function getGestoresPorCategoria(categoria) {
   const { data, error } = await supabase
     .from('usuarios')
@@ -312,12 +300,11 @@ export async function getNombreUsuario(email) {
     .select('nombre')
     .eq('email', email)
     .single();
-  if (error) return email; // fallback: muestra email si no encuentra
+  if (error) return email;
   return data?.nombre || email;
 }
 
-// Verifica si al menos una posición fue revisada por algún gestor
-// (para avanzar al paso 3 parcialmente)
+// ── VERIFICACIÓN DE ESTADOS DE POSICIONES ──────────────────────
 export async function hayPosicionesRevisadas(solicitudId) {
   const { data, error } = await supabase
     .from('posiciones')
@@ -328,7 +315,6 @@ export async function hayPosicionesRevisadas(solicitudId) {
   return data.length > 0;
 }
 
-// Verifica si TODAS las posiciones no rechazadas fueron revisadas por gestor
 export async function todasPosicionesRevisadas(solicitudId) {
   const { data, error } = await supabase
     .from('posiciones')
@@ -337,4 +323,14 @@ export async function todasPosicionesRevisadas(solicitudId) {
   if (error) throw error;
   const activas = data.filter(p => p.estado !== 'Rechazada');
   return activas.length > 0 && activas.every(p => p.estado_gestor === 'Revisada');
+}
+
+export async function todasPosicionesAprobadas(solicitudId) {
+  const { data, error } = await supabase
+    .from('posiciones')
+    .select('estado_lider, estado')
+    .eq('solicitud_id', solicitudId);
+  if (error) throw error;
+  const activas = data.filter(p => p.estado !== 'Rechazada');
+  return activas.length > 0 && activas.every(p => p.estado_lider === 'Aprobada');
 }
