@@ -84,29 +84,29 @@ export default function GestorInventario() {
     setLoading(false);
   }
 
-  async function handleRevisar(sol) {
-    const todasPos = await getPosicionesBySolicitud(sol.id);
+async function handleRevisar(sol) {
+  const todasPos = await getPosicionesBySolicitud(sol.id);
 
-    // Filtrar solo las posiciones de las categorías del gestor
-    const categoriaGestor = user?.categorias || [];
-    const posFiltradas = categoriaGestor.length > 0
-      ? todasPos.filter(p => categoriaGestor.includes(p.categoria))
-      : todasPos;
+  // Filtrar solo las posiciones de las categorías del gestor
+  const categoriaGestor = user?.categorias || [];
+  const posFiltradas = categoriaGestor.length > 0
+    ? todasPos.filter(p => categoriaGestor.includes(p.categoria))
+    : todasPos;
 
-    setSelected({...sol, posiciones: posFiltradas});
+  setSelected({...sol, posiciones: posFiltradas});
 
-    const initForm = {};
-    posFiltradas.forEach(p => {
-      initForm[p.id] = {
-        tipoMaterial:   p.tipo_material || '',
-        grupoArticulos: p.grupo_articulos || '',
-        rechazada:      p.estado === 'Rechazada',
-        motivoRechazo:  '',
-        mostrarRechazo: false,
-      };
-    });
-    setFormPosiciones(initForm);
-  }
+  const initForm = {};
+  posFiltradas.forEach(p => {
+    initForm[p.id] = {
+      tipoMaterial:   p.tipo_material || '',
+      grupoArticulos: p.grupo_articulos || '',
+      rechazada:      p.estado === 'Rechazada',
+      motivoRechazo:  '',
+      mostrarRechazo: false,
+    };
+  });
+  setFormPosiciones(initForm);
+}
 
   function handleChangePosicion(posId, field, value) {
     setFormPosiciones(prev => ({
