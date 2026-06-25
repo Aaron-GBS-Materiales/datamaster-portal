@@ -11,9 +11,8 @@ export default function GestorInventario() {
   const [solicitudes, setSolicitudes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState(null);
-  const [formPosiciones, setFormPosiciones] = useState({});  // { [posId]: { tipoMaterial, grupoArticulos } }
-  const [motivo, setMotivo] = useState('');
-  const [action, setAction] = useState(null);
+  const [formPosiciones, setFormPosiciones] = useState({});
+  // { [posId]: { tipoMaterial, grupoArticulos, rechazada, motivoRechazo } }
   const [saving, setSaving] = useState(false);
 
   useEffect(() => { load(); }, []);
@@ -34,17 +33,17 @@ export default function GestorInventario() {
   async function handleRevisar(sol) {
     const pos = await getPosicionesBySolicitud(sol.id);
     setSelected({...sol, posiciones: pos});
-    // Inicializar form con una entrada por posición (precargar si ya tiene valores)
     const initForm = {};
     pos.forEach(p => {
       initForm[p.id] = {
-        tipoMaterial: p.tipo_material || '',
+        tipoMaterial:   p.tipo_material || '',
         grupoArticulos: p.grupo_articulos || '',
+        rechazada:      p.estado === 'Rechazada',
+        motivoRechazo:  '',
+        mostrarRechazo: false,
       };
     });
     setFormPosiciones(initForm);
-    setMotivo('');
-    setAction(null);
   }
 
   function handleChangePosicion(posId, field, value) {
@@ -53,29 +52,58 @@ export default function GestorInventario() {
       [posId]: {
         ...prev[posId],
         [field]: value,
-        // Si cambia el tipo, limpiar el grupo
         ...(field === 'tipoMaterial' ? { grupoArticulos: '' } : {}),
       }
     }));
   }
 
-  const todasPosicionesCompletas = () => {
-    if (!selected?.posiciones?.length) return false;
-    return selected.posiciones.every(p =>
+  // Posiciones no rechazadas que tienen tipo y grupo completos
+  const posicionesAprobables = () =>
+    selected?.posiciones?.filter(p => !formPosiciones[p.id]?.rechazada) || [];
+
+  const todasAprobablesCompletas = () =>
+    posicionesAprobables().length > 0 &&
+    posicionesAprobables().every(p =>
       formPosiciones[p.id]?.tipoMaterial && formPosiciones[p.id]?.grupoArticulos
     );
-  };
 
-  async function handleCompletar() {
-    if (!todasPosicionesCompletas()) return;
+  // Rechazar una posición individual
+  async function handleRechazarPosicion(posId) {
+    const motivo = formPosiciones[posId]?.motivoRechazo;
+    if (!motivo) return;
     setSaving(true);
     try {
-      // Guardar tipo_material y grupo_articulos en cada posición individualmente
+      await actualizarPosicion(posId, {
+        estado: 'Rechazada',
+        motivo_rechazo: motivo,
+      });
+      setFormPosiciones(prev => ({
+        ...prev,
+        [posId]: { ...prev[posId], rechazada: true, mostrarRechazo: false }
+      }));
+      // Actualizar posiciones en selected
+      setSelected(prev => ({
+        ...prev,
+        posiciones: prev.posiciones.map(p =>
+          p.id === posId ? {...p, estado: 'Rechazada'} : p
+        )
+      }));
+    } catch {}
+    setSaving(false);
+  }
+
+  // Aprobar posiciones completas y avanzar solicitud
+  async function handleEnviarALider() {
+    if (!todasAprobablesCompletas()) return;
+    setSaving(true);
+    try {
+      // Guardar tipo y grupo solo en posiciones NO rechazadas
       await Promise.all(
-        selected.posiciones.map(p =>
+        posicionesAprobables().map(p =>
           actualizarPosicion(p.id, {
-            tipo_material: formPosiciones[p.id].tipoMaterial,
+            tipo_material:   formPosiciones[p.id].tipoMaterial,
             grupo_articulos: formPosiciones[p.id].grupoArticulos,
+            estado:          'Aprobada',
           })
         )
       );
@@ -83,26 +111,26 @@ export default function GestorInventario() {
       await avanzarPaso(selected.id, 3, { asignado_a: user.email });
       setSelected(null);
       setFormPosiciones({});
-      setAction(null);
       load();
     } catch {}
     setSaving(false);
   }
 
-  async function handleRechazar() {
-    if (!motivo) return;
+  // Rechazar solicitud completa
+  async function handleRechazarTodo() {
     setSaving(true);
     try {
-      await rechazarSolicitud(selected.id, motivo);
+      await rechazarSolicitud(selected.id, 'Solicitud rechazada por Gestor de Inventario');
       setSelected(null);
-      setMotivo('');
-      setAction(null);
+      setFormPosiciones({});
       load();
     } catch {}
     setSaving(false);
   }
 
   const procesadas = solicitudes.filter(s => s.paso > 2);
+  const posRechazadas = selected ? Object.values(formPosiciones).filter(f => f.rechazada).length : 0;
+  const posAprobables = selected ? posicionesAprobables().length : 0;
 
   return (
     <div style={s.wrap}>
@@ -115,7 +143,6 @@ export default function GestorInventario() {
           </div>
           <span style={{fontSize:13, color:'#9ca3af'}}>{solicitudes.filter(s => s.paso === 2).length} pendientes</span>
         </div>
-
         {loading ? (
           <div style={s.loading}>Cargando…</div>
         ) : solicitudes.filter(s => s.paso === 2).length === 0 ? (
@@ -124,11 +151,9 @@ export default function GestorInventario() {
           <div style={{overflowX:'auto'}}>
             <table style={s.table}>
               <thead>
-                <tr>
-                  {['Ticket','Solicitante','País','Estado','Acción'].map(h=>
-                    <th key={h} style={s.th}>{h}</th>
-                  )}
-                </tr>
+                <tr>{['Ticket','Solicitante','País','Estado','Acción'].map(h=>
+                  <th key={h} style={s.th}>{h}</th>
+                )}</tr>
               </thead>
               <tbody>
                 {solicitudes.filter(s => s.paso === 2).map(sol => (
@@ -137,14 +162,10 @@ export default function GestorInventario() {
                     <td style={s.td}>{sol.nombre_solicitante}</td>
                     <td style={s.td}>{FLAG[sol.pais]||''} {sol.pais}</td>
                     <td style={s.td}>
-                      <span style={{fontSize:11, fontWeight:600, padding:'3px 8px', borderRadius:12, background:'#eff4ff', color:'#2563eb'}}>
-                        Paso 2
-                      </span>
+                      <span style={{fontSize:11, fontWeight:600, padding:'3px 8px', borderRadius:12, background:'#eff4ff', color:'#2563eb'}}>Paso 2</span>
                     </td>
                     <td style={s.td}>
-                      <button style={s.btnRevisar} onClick={() => handleRevisar(sol)}>
-                        Revisar →
-                      </button>
+                      <button style={s.btnRevisar} onClick={() => handleRevisar(sol)}>Revisar →</button>
                     </td>
                   </tr>
                 ))}
@@ -154,7 +175,7 @@ export default function GestorInventario() {
         )}
       </div>
 
-      {/* PROCESADAS */}
+      {/* HISTORIAL */}
       {procesadas.length > 0 && (
         <div style={s.card}>
           <div style={s.header}>
@@ -163,11 +184,9 @@ export default function GestorInventario() {
           <div style={{overflowX:'auto'}}>
             <table style={s.table}>
               <thead>
-                <tr>
-                  {['Ticket','Solicitante','Posiciones','Estado','Fecha'].map(h=>
-                    <th key={h} style={s.th}>{h}</th>
-                  )}
-                </tr>
+                <tr>{['Ticket','Solicitante','Estado','Fecha'].map(h=>
+                  <th key={h} style={s.th}>{h}</th>
+                )}</tr>
               </thead>
               <tbody>
                 {procesadas.map(sol => (
@@ -175,12 +194,9 @@ export default function GestorInventario() {
                     <td style={{...s.td, fontFamily:'monospace', color:'#2563eb', fontWeight:600}}>{sol.ticket_id}</td>
                     <td style={s.td}>{sol.nombre_solicitante}</td>
                     <td style={s.td}>
-                      <span style={{fontSize:11, color:'#6b7280'}}>
-                        {sol.posiciones_count || '—'} posición(es)
-                      </span>
-                    </td>
-                    <td style={s.td}>
-                      <span style={{fontSize:11, fontWeight:600, padding:'3px 8px', borderRadius:12, background:sol.estado==='Rechazada'?'#fef2f2':'#dcfce7', color:sol.estado==='Rechazada'?'#dc2626':'#16a34a'}}>
+                      <span style={{fontSize:11, fontWeight:600, padding:'3px 8px', borderRadius:12,
+                        background: sol.estado==='Rechazada'?'#fef2f2':'#dcfce7',
+                        color: sol.estado==='Rechazada'?'#dc2626':'#16a34a'}}>
                         {sol.estado}
                       </span>
                     </td>
@@ -197,42 +213,66 @@ export default function GestorInventario() {
 
       {/* MODAL */}
       {selected && (
-        <div style={s.modalBg} onClick={()=>setSelected(null)}>
-          <div style={s.modal} onClick={e=>e.stopPropagation()}>
+        <div style={s.modalBg} onClick={() => setSelected(null)}>
+          <div style={s.modal} onClick={e => e.stopPropagation()}>
             <h3 style={s.mTitle}>Revisar y Completar</h3>
             <p style={s.mSub}>{selected.ticket_id} · {selected.nombre_solicitante}</p>
 
-            {/* POSICIONES CON SELECTS INDIVIDUALES */}
+            {/* Resumen de estado */}
+            {selected.posiciones?.length > 1 && (
+              <div style={s.resumenBar}>
+                <span style={{color:'#16a34a', fontWeight:600}}>
+                  {posicionesAprobables().filter(p => formPosiciones[p.id]?.tipoMaterial && formPosiciones[p.id]?.grupoArticulos).length} completas
+                </span>
+                <span style={{color:'#6b7280', margin:'0 8px'}}>·</span>
+                <span style={{color:'#f59e0b', fontWeight:600}}>
+                  {posicionesAprobables().filter(p => !formPosiciones[p.id]?.tipoMaterial || !formPosiciones[p.id]?.grupoArticulos).length} pendientes
+                </span>
+                {posRechazadas > 0 && <>
+                  <span style={{color:'#6b7280', margin:'0 8px'}}>·</span>
+                  <span style={{color:'#dc2626', fontWeight:600}}>{posRechazadas} rechazadas</span>
+                </>}
+                <span style={{color:'#6b7280', marginLeft:'auto', fontSize:11}}>
+                  Total: {selected.posiciones.length} posiciones
+                </span>
+              </div>
+            )}
+
+            {/* POSICIONES */}
             <div style={s.posicionesBox}>
               <div style={{fontSize:12, fontWeight:700, color:'#0f1d3a', marginBottom:12}}>
                 Posiciones solicitadas ({selected.posiciones?.length || 0})
               </div>
 
               {selected.posiciones && selected.posiciones.map((pos, idx) => {
-                const posForm = formPosiciones[pos.id] || { tipoMaterial: '', grupoArticulos: '' };
-                const gruposDisponibles = posForm.tipoMaterial
-                  ? (GRUPOS_ARTICULOS[posForm.tipoMaterial] || [])
-                  : [];
+                const posForm = formPosiciones[pos.id] || {};
+                const gruposDisponibles = posForm.tipoMaterial ? (GRUPOS_ARTICULOS[posForm.tipoMaterial] || []) : [];
                 const completa = posForm.tipoMaterial && posForm.grupoArticulos;
+                const rechazada = posForm.rechazada;
 
                 return (
                   <div key={pos.id} style={{
                     ...s.posicionItem,
-                    borderLeft: completa ? '3px solid #16a34a' : '3px solid #e2e5ef',
+                    borderLeft: rechazada ? '3px solid #dc2626' : completa ? '3px solid #16a34a' : '3px solid #e2e5ef',
+                    opacity: rechazada ? 0.6 : 1,
                   }}>
-                    {/* Encabezado posición */}
+                    {/* Encabezado */}
                     <div style={{display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:10}}>
                       <span style={{fontSize:11, fontWeight:700, color:'#6b7280', letterSpacing:'.5px'}}>
                         POSICIÓN {idx + 1}
                       </span>
-                      {completa && (
+                      {rechazada ? (
+                        <span style={{fontSize:10, fontWeight:700, color:'#dc2626', background:'#fef2f2', padding:'2px 8px', borderRadius:10}}>
+                          ✗ Rechazada
+                        </span>
+                      ) : completa ? (
                         <span style={{fontSize:10, fontWeight:700, color:'#16a34a', background:'#dcfce7', padding:'2px 8px', borderRadius:10}}>
                           ✓ Completa
                         </span>
-                      )}
+                      ) : null}
                     </div>
 
-                    {/* Info del material */}
+                    {/* Info */}
                     <div style={{marginBottom:8}}>
                       <div style={s.posLabel}>DENOMINACIÓN</div>
                       <div style={s.posValor}>{pos.denominacion}</div>
@@ -243,99 +283,102 @@ export default function GestorInventario() {
                         <div style={s.posValor}>{pos.unidad_medida}</div>
                       </div>
                     </div>
-                    <div style={{marginBottom:12}}>
+                    <div style={{marginBottom:10}}>
                       <div style={s.posLabel}>TEXTO DE PEDIDO</div>
-                      <div style={{...s.posValor, whiteSpace:'pre-wrap', maxHeight:50, overflow:'auto', color:'#6b7280'}}>
+                      <div style={{...s.posValor, color:'#6b7280', whiteSpace:'pre-wrap', maxHeight:50, overflow:'auto'}}>
                         {pos.texto_pedido || '—'}
                       </div>
                     </div>
 
-                    {/* Selects por posición — solo cuando NO está en modo rechazar */}
-                    {action !== 'rechazar' && (
-                      <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, paddingTop:10, borderTop:'1px dashed #e2e5ef'}}>
-                        <div>
-                          <label style={s.label}>
-                            Tipo de Material <span style={{color:'#dc2626'}}>*</span>
-                          </label>
-                          <select
-                            style={s.select}
-                            value={posForm.tipoMaterial}
-                            onChange={e => handleChangePosicion(pos.id, 'tipoMaterial', e.target.value)}
-                          >
-                            <option value="">Seleccionar tipo…</option>
-                            {TIPOS_MATERIAL.map(t =>
-                              <option key={t.codigo} value={t.codigo}>{t.codigo} - {t.nombre}</option>
-                            )}
-                          </select>
+                    {/* Selects — solo si NO está rechazada */}
+                    {!rechazada && (
+                      <>
+                        <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, paddingTop:10, borderTop:'1px dashed #e2e5ef', marginBottom:10}}>
+                          <div>
+                            <label style={s.label}>Tipo de Material <span style={{color:'#dc2626'}}>*</span></label>
+                            <select style={s.select} value={posForm.tipoMaterial || ''}
+                              onChange={e => handleChangePosicion(pos.id, 'tipoMaterial', e.target.value)}>
+                              <option value="">Seleccionar tipo…</option>
+                              {TIPOS_MATERIAL.map(t =>
+                                <option key={t.codigo} value={t.codigo}>{t.codigo} - {t.nombre}</option>
+                              )}
+                            </select>
+                          </div>
+                          <div>
+                            <label style={s.label}>Grupo de Artículos <span style={{color:'#dc2626'}}>*</span></label>
+                            <select style={{...s.select, background: !posForm.tipoMaterial ? '#f9fafb' : '#fff'}}
+                              value={posForm.grupoArticulos || ''}
+                              disabled={!posForm.tipoMaterial}
+                              onChange={e => handleChangePosicion(pos.id, 'grupoArticulos', e.target.value)}>
+                              <option value="">Seleccionar grupo…</option>
+                              {gruposDisponibles.map(g =>
+                                <option key={g.codigo} value={g.codigo}>{g.codigo} - {g.nombre}</option>
+                              )}
+                            </select>
+                          </div>
                         </div>
-                        <div>
-                          <label style={s.label}>
-                            Grupo de Artículos <span style={{color:'#dc2626'}}>*</span>
-                          </label>
-                          <select
-                            style={{...s.select, background: !posForm.tipoMaterial ? '#f9fafb' : '#fff'}}
-                            value={posForm.grupoArticulos}
-                            disabled={!posForm.tipoMaterial}
-                            onChange={e => handleChangePosicion(pos.id, 'grupoArticulos', e.target.value)}
-                          >
-                            <option value="">Seleccionar grupo…</option>
-                            {gruposDisponibles.map(g =>
-                              <option key={g.codigo} value={g.codigo}>{g.codigo} - {g.nombre}</option>
-                            )}
-                          </select>
-                        </div>
-                      </div>
+
+                        {/* Botón rechazar posición individual */}
+                        {!posForm.mostrarRechazo ? (
+                          <button style={s.btnRechazarPos}
+                            onClick={() => handleChangePosicion(pos.id, 'mostrarRechazo', true)}>
+                            ✗ Rechazar esta posición
+                          </button>
+                        ) : (
+                          <div style={{marginTop:8, background:'#fef2f2', borderRadius:8, padding:10}}>
+                            <div style={{fontSize:11, fontWeight:600, color:'#dc2626', marginBottom:6}}>
+                              Motivo del rechazo
+                            </div>
+                            <textarea
+                              style={{...s.input, minHeight:60, resize:'vertical', fontSize:12, marginBottom:8}}
+                              placeholder="Indica el motivo…"
+                              value={posForm.motivoRechazo || ''}
+                              onChange={e => handleChangePosicion(pos.id, 'motivoRechazo', e.target.value)}
+                            />
+                            <div style={{display:'flex', gap:8}}>
+                              <button style={{...s.btnRechazarPos, flex:1}}
+                                onClick={() => handleChangePosicion(pos.id, 'mostrarRechazo', false)}>
+                                Cancelar
+                              </button>
+                              <button
+                                style={{...s.btnRechazarPos, flex:1, background:'#dc2626', color:'#fff', border:'none',
+                                  opacity: posForm.motivoRechazo ? 1 : 0.5}}
+                                disabled={!posForm.motivoRechazo || saving}
+                                onClick={() => handleRechazarPosicion(pos.id)}>
+                                Confirmar rechazo
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </>
                     )}
                   </div>
                 );
               })}
             </div>
 
-            {/* Campo motivo rechazo */}
-            {action === 'rechazar' && (
-              <div style={{marginBottom:20}}>
-                <label style={{...s.label, marginBottom:7}}>Motivo del rechazo</label>
-                <textarea
-                  style={{...s.input, resize:'vertical', minHeight:80}}
-                  placeholder="Indica por qué se rechaza esta solicitud"
-                  value={motivo}
-                  onChange={e => setMotivo(e.target.value)}
-                />
-              </div>
-            )}
-
-            {/* Indicador de progreso */}
-            {action !== 'rechazar' && selected.posiciones?.length > 1 && (
+            {/* Indicador progreso */}
+            {posAprobables > 0 && (
               <div style={{marginBottom:16, fontSize:12, color:'#6b7280', textAlign:'right'}}>
-                {selected.posiciones.filter(p => formPosiciones[p.id]?.tipoMaterial && formPosiciones[p.id]?.grupoArticulos).length}
-                /{selected.posiciones.length} posiciones completadas
+                {posicionesAprobables().filter(p => formPosiciones[p.id]?.tipoMaterial && formPosiciones[p.id]?.grupoArticulos).length}
+                /{posAprobables} posiciones aprobables completadas
               </div>
             )}
 
-            {/* Botones */}
-            <div style={{display:'flex', gap:10, justifyContent:'flex-end'}}>
+            {/* Botones principales */}
+            <div style={{display:'flex', gap:10, justifyContent:'flex-end', flexWrap:'wrap'}}>
               <button style={s.btnCancel} onClick={() => setSelected(null)}>Cancelar</button>
-              {action === null ? (
-                <>
-                  <button style={s.btnReject} onClick={() => setAction('rechazar')} disabled={saving}>
-                    ✗ Rechazar
-                  </button>
-                  <button
-                    style={{...s.btnComplete, opacity: todasPosicionesCompletas() ? 1 : 0.5}}
-                    onClick={handleCompletar}
-                    disabled={!todasPosicionesCompletas() || saving}
-                  >
-                    {saving ? 'Enviando…' : 'Enviar a Líder →'}
-                  </button>
-                </>
-              ) : (
-                <>
-                  <button style={s.btnCancel} onClick={() => setAction(null)}>Atrás</button>
-                  <button style={s.btnReject} onClick={handleRechazar} disabled={!motivo || saving}>
-                    {saving ? 'Rechazando…' : 'Confirmar rechazo'}
-                  </button>
-                </>
-              )}
+              <button style={s.btnReject} onClick={handleRechazarTodo} disabled={saving}>
+                ✗ Rechazar todo
+              </button>
+              <button
+                style={{...s.btnComplete, opacity: todasAprobablesCompletas() ? 1 : 0.5}}
+                onClick={handleEnviarALider}
+                disabled={!todasAprobablesCompletas() || saving}>
+                {saving ? 'Enviando…' : posRechazadas > 0
+                  ? `Enviar ${posAprobables} pos. a Líder →`
+                  : 'Enviar a Líder →'}
+              </button>
             </div>
           </div>
         </div>
@@ -345,29 +388,31 @@ export default function GestorInventario() {
 }
 
 const s = {
-  wrap:         { padding:28 },
-  card:         { background:'#fff', border:'1px solid #e2e5ef', borderRadius:12, overflow:'hidden', marginBottom:20 },
-  header:       { padding:'20px 24px', borderBottom:'1px solid #e2e5ef', display:'flex', alignItems:'center', justifyContent:'space-between' },
-  h2:           { fontSize:18, fontWeight:800, color:'#0f1d3a', margin:0 },
-  sub:          { fontSize:12, color:'#6b7280', marginTop:3 },
-  loading:      { padding:48, textAlign:'center', color:'#9ca3af' },
-  empty:        { padding:48, textAlign:'center', color:'#9ca3af' },
-  table:        { width:'100%', borderCollapse:'collapse' },
-  th:           { padding:'10px 14px', background:'#f5f6fa', fontSize:11, fontWeight:600, color:'#6b7280', textTransform:'uppercase', letterSpacing:'.6px', textAlign:'left', borderBottom:'1px solid #e2e5ef', whiteSpace:'nowrap' },
-  td:           { padding:'11px 14px', fontSize:13, color:'#374151', borderBottom:'1px solid #f0f2f8' },
-  btnRevisar:   { padding:'5px 12px', background:'#eff4ff', color:'#2563eb', border:'1px solid #bfdbfe', borderRadius:7, fontSize:12, fontWeight:600, cursor:'pointer' },
-  modalBg:      { position:'fixed', inset:0, background:'rgba(0,0,0,.45)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:200, padding:24 },
-  modal:        { background:'#fff', borderRadius:16, padding:32, maxWidth:580, width:'100%', boxShadow:'0 24px 64px rgba(0,0,0,.2)', maxHeight:'90vh', overflow:'auto' },
-  mTitle:       { fontSize:18, fontWeight:800, color:'#0f1d3a', marginBottom:4 },
-  mSub:         { fontSize:13, color:'#6b7280', marginBottom:20 },
-  posicionesBox:{ background:'#f5f6fa', borderRadius:10, padding:14, marginBottom:20 },
-  posicionItem: { background:'#fff', borderRadius:8, padding:14, marginBottom:12, border:'1px solid #e2e5ef' },
-  posLabel:     { fontSize:10, fontWeight:600, color:'#9ca3af', marginBottom:3, letterSpacing:'.5px' },
-  posValor:     { fontSize:13, color:'#111827' },
-  label:        { display:'block', fontSize:11, fontWeight:600, color:'#374151', marginBottom:5 },
-  input:        { width:'100%', padding:'10px 13px', border:'1.5px solid #e2e5ef', borderRadius:8, fontSize:14, outline:'none', boxSizing:'border-box' },
-  select:       { width:'100%', padding:'8px 10px', border:'1.5px solid #e2e5ef', borderRadius:8, fontSize:13, outline:'none', boxSizing:'border-box', background:'#fff' },
-  btnCancel:    { padding:'10px 18px', background:'#f5f6fa', color:'#374151', border:'1.5px solid #e2e5ef', borderRadius:8, fontSize:14, fontWeight:600, cursor:'pointer' },
-  btnReject:    { padding:'10px 18px', background:'#fef2f2', color:'#dc2626', border:'1px solid #fecaca', borderRadius:8, fontSize:14, fontWeight:600, cursor:'pointer' },
-  btnComplete:  { padding:'10px 22px', background:'#2563eb', color:'#fff', border:'none', borderRadius:8, fontSize:14, fontWeight:700, cursor:'pointer' },
+  wrap:          { padding:28 },
+  card:          { background:'#fff', border:'1px solid #e2e5ef', borderRadius:12, overflow:'hidden', marginBottom:20 },
+  header:        { padding:'20px 24px', borderBottom:'1px solid #e2e5ef', display:'flex', alignItems:'center', justifyContent:'space-between' },
+  h2:            { fontSize:18, fontWeight:800, color:'#0f1d3a', margin:0 },
+  sub:           { fontSize:12, color:'#6b7280', marginTop:3 },
+  loading:       { padding:48, textAlign:'center', color:'#9ca3af' },
+  empty:         { padding:48, textAlign:'center', color:'#9ca3af' },
+  table:         { width:'100%', borderCollapse:'collapse' },
+  th:            { padding:'10px 14px', background:'#f5f6fa', fontSize:11, fontWeight:600, color:'#6b7280', textTransform:'uppercase', letterSpacing:'.6px', textAlign:'left', borderBottom:'1px solid #e2e5ef', whiteSpace:'nowrap' },
+  td:            { padding:'11px 14px', fontSize:13, color:'#374151', borderBottom:'1px solid #f0f2f8' },
+  btnRevisar:    { padding:'5px 12px', background:'#eff4ff', color:'#2563eb', border:'1px solid #bfdbfe', borderRadius:7, fontSize:12, fontWeight:600, cursor:'pointer' },
+  modalBg:       { position:'fixed', inset:0, background:'rgba(0,0,0,.45)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:200, padding:24 },
+  modal:         { background:'#fff', borderRadius:16, padding:32, maxWidth:600, width:'100%', boxShadow:'0 24px 64px rgba(0,0,0,.2)', maxHeight:'90vh', overflow:'auto' },
+  mTitle:        { fontSize:18, fontWeight:800, color:'#0f1d3a', marginBottom:4 },
+  mSub:          { fontSize:13, color:'#6b7280', marginBottom:16 },
+  resumenBar:    { display:'flex', alignItems:'center', background:'#f5f6fa', borderRadius:8, padding:'8px 12px', marginBottom:16, fontSize:12 },
+  posicionesBox: { background:'#f5f6fa', borderRadius:10, padding:14, marginBottom:16 },
+  posicionItem:  { background:'#fff', borderRadius:8, padding:14, marginBottom:12, border:'1px solid #e2e5ef' },
+  posLabel:      { fontSize:10, fontWeight:600, color:'#9ca3af', marginBottom:3, letterSpacing:'.5px' },
+  posValor:      { fontSize:13, color:'#111827' },
+  label:         { display:'block', fontSize:11, fontWeight:600, color:'#374151', marginBottom:5 },
+  input:         { width:'100%', padding:'10px 13px', border:'1.5px solid #e2e5ef', borderRadius:8, fontSize:14, outline:'none', boxSizing:'border-box' },
+  select:        { width:'100%', padding:'8px 10px', border:'1.5px solid #e2e5ef', borderRadius:8, fontSize:13, outline:'none', boxSizing:'border-box', background:'#fff' },
+  btnCancel:     { padding:'10px 18px', background:'#f5f6fa', color:'#374151', border:'1.5px solid #e2e5ef', borderRadius:8, fontSize:14, fontWeight:600, cursor:'pointer' },
+  btnReject:     { padding:'10px 18px', background:'#fef2f2', color:'#dc2626', border:'1px solid #fecaca', borderRadius:8, fontSize:14, fontWeight:600, cursor:'pointer' },
+  btnComplete:   { padding:'10px 22px', background:'#2563eb', color:'#fff', border:'none', borderRadius:8, fontSize:14, fontWeight:700, cursor:'pointer' },
+  btnRechazarPos:{ padding:'6px 12px', background:'#fff', color:'#dc2626', border:'1px solid #fecaca', borderRadius:6, fontSize:11, fontWeight:600, cursor:'pointer', width:'100%' },
 };
