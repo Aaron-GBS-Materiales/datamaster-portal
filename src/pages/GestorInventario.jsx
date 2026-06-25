@@ -56,44 +56,47 @@ export default function GestorInventario() {
     return () => clearInterval(interval);
   }, []);
 
-async function load() {
-  setLoading(true);
-  try {
-    const paso2 = await getSolicitudesPorPaso(2);
-    const paso3 = await getSolicitudesPorPaso(3);
-    const paso4 = await getSolicitudesPorPaso(4);
-    const paso5 = await getSolicitudesPorPaso(5);
+  async function load() {
+    setLoading(true);
+    try {
+      const paso2 = await getSolicitudesPorPaso(2);
+      const paso3 = await getSolicitudesPorPaso(3);
+      const paso4 = await getSolicitudesPorPaso(4);
+      const paso5 = await getSolicitudesPorPaso(5);
 
-    let data = [...paso2, ...paso3, ...paso4, ...paso5]
-      .filter(s => s.unidad_negocio === 'UNACEM PERU');
+      let data = [...paso2, ...paso3, ...paso4, ...paso5]
+        .filter(s => s.unidad_negocio === 'UNACEM PERU');
 
-    // Filtrar por categorías del gestor logueado
-    const categoriaGestor = user?.categorias;
-    if (categoriaGestor && categoriaGestor.length > 0) {
-      // Cargar posiciones de cada solicitud y filtrar
-      // si al menos una posición coincide con las categorías del gestor
-      const dataFiltrada = await Promise.all(
-        data.map(async sol => {
-          const pos = await getPosicionesBySolicitud(sol.id);
-          const tieneMiCategoria = pos.some(p =>
-            categoriaGestor.includes(p.categoria)
-          );
-          return tieneMiCategoria ? sol : null;
-        })
-      );
-      data = dataFiltrada.filter(Boolean);
-    }
+      const categoriaGestor = user?.categorias;
+      if (categoriaGestor && categoriaGestor.length > 0) {
+        const dataFiltrada = await Promise.all(
+          data.map(async sol => {
+            const pos = await getPosicionesBySolicitud(sol.id);
+            const tieneMiCategoria = pos.some(p => categoriaGestor.includes(p.categoria));
+            return tieneMiCategoria ? sol : null;
+          })
+        );
+        data = dataFiltrada.filter(Boolean);
+      }
 
-    setSolicitudes(data);
-  } catch {}
-  setLoading(false);
-}
+      setSolicitudes(data);
+    } catch {}
+    setLoading(false);
+  }
 
   async function handleRevisar(sol) {
-    const pos = await getPosicionesBySolicitud(sol.id);
-    setSelected({...sol, posiciones: pos});
+    const todasPos = await getPosicionesBySolicitud(sol.id);
+
+    // Filtrar solo las posiciones de las categorías del gestor
+    const categoriaGestor = user?.categorias || [];
+    const posFiltradas = categoriaGestor.length > 0
+      ? todasPos.filter(p => categoriaGestor.includes(p.categoria))
+      : todasPos;
+
+    setSelected({...sol, posiciones: posFiltradas});
+
     const initForm = {};
-    pos.forEach(p => {
+    posFiltradas.forEach(p => {
       initForm[p.id] = {
         tipoMaterial:   p.tipo_material || '',
         grupoArticulos: p.grupo_articulos || '',
@@ -233,16 +236,13 @@ async function load() {
                       {formatFecha(sol.fecha_recepcion)}
                     </td>
                     <td style={{...s.td, whiteSpace:'nowrap'}}>
-                      <span style={{
-                        fontSize:11, fontWeight:700,
+                      <span style={{fontSize:11, fontWeight:700,
                         color: colorTiempo(sol.fecha_recepcion),
                         background: bgTiempo(sol.fecha_recepcion),
-                        padding:'2px 8px', borderRadius:10,
-                      }}>
+                        padding:'2px 8px', borderRadius:10}}>
                         ⏱ {tiempoTranscurrido(sol.fecha_recepcion)}
                       </span>
                     </td>
-                    {/* ── ESTADO con EstadoBadge ── */}
                     <td style={s.td}>
                       <EstadoBadge paso={sol.paso} flujo={sol.flujo} />
                     </td>
@@ -281,7 +281,6 @@ async function load() {
                       </span>
                     </td>
                     <td style={s.td}>{FLAG[sol.pais]||''} {sol.pais}</td>
-                    {/* ── ESTADO con EstadoBadge ── */}
                     <td style={s.td}>
                       <EstadoBadge paso={sol.paso} flujo={sol.flujo} />
                     </td>
@@ -320,6 +319,15 @@ async function load() {
               </div>
             </div>
 
+            {/* Aviso de posiciones filtradas */}
+            {user?.categorias?.length > 0 && (
+              <div style={{background:'#eff4ff', border:'1px solid #bfdbfe', borderRadius:8,
+                padding:'8px 12px', fontSize:12, color:'#2563eb', marginBottom:16}}>
+                📋 Mostrando solo las posiciones de tus categorías asignadas:
+                <strong> {user.categorias.join(', ')}</strong>
+              </div>
+            )}
+
             {selected.posiciones?.length > 1 && (
               <div style={s.resumenBar}>
                 <span style={{color:'#16a34a', fontWeight:600}}>
@@ -334,14 +342,14 @@ async function load() {
                   <span style={{color:'#dc2626', fontWeight:600}}>{posRechazadas} rechazadas</span>
                 </>}
                 <span style={{color:'#6b7280', marginLeft:'auto', fontSize:11}}>
-                  Total: {selected.posiciones.length} posiciones
+                  {selected.posiciones.length} posiciones asignadas a ti
                 </span>
               </div>
             )}
 
             <div style={s.posicionesBox}>
               <div style={{fontSize:12, fontWeight:700, color:'#0f1d3a', marginBottom:12}}>
-                Posiciones solicitadas ({selected.posiciones?.length || 0})
+                Posiciones asignadas ({selected.posiciones?.length || 0})
               </div>
 
               {selected.posiciones && selected.posiciones.map((pos, idx) => {
@@ -357,9 +365,18 @@ async function load() {
                     opacity: rechazada ? 0.6 : 1,
                   }}>
                     <div style={{display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:10}}>
-                      <span style={{fontSize:11, fontWeight:700, color:'#6b7280', letterSpacing:'.5px'}}>
-                        POSICIÓN {idx + 1}
-                      </span>
+                      <div style={{display:'flex', alignItems:'center', gap:8}}>
+                        <span style={{fontSize:11, fontWeight:700, color:'#6b7280', letterSpacing:'.5px'}}>
+                          POSICIÓN {idx + 1}
+                        </span>
+                        {/* Badge de categoría */}
+                        {pos.categoria && (
+                          <span style={{fontSize:10, fontWeight:600, padding:'1px 6px', borderRadius:8,
+                            background:'#ede9fe', color:'#7c3aed'}}>
+                            {pos.categoria}
+                          </span>
+                        )}
+                      </div>
                       {rechazada ? (
                         <span style={{fontSize:10, fontWeight:700, color:'#dc2626', background:'#fef2f2', padding:'2px 8px', borderRadius:10}}>✗ Rechazada</span>
                       ) : completa ? (
@@ -386,7 +403,8 @@ async function load() {
 
                     {!rechazada && (
                       <>
-                        <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, paddingTop:10, borderTop:'1px dashed #e2e5ef', marginBottom:10}}>
+                        <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:10,
+                          paddingTop:10, borderTop:'1px dashed #e2e5ef', marginBottom:10}}>
                           <div>
                             <label style={s.label}>Tipo de Material <span style={{color:'#dc2626'}}>*</span></label>
                             <select style={s.select} value={posForm.tipoMaterial || ''}
@@ -450,7 +468,7 @@ async function load() {
             {posAprobables > 0 && (
               <div style={{marginBottom:16, fontSize:12, color:'#6b7280', textAlign:'right'}}>
                 {posicionesAprobables().filter(p => formPosiciones[p.id]?.tipoMaterial && formPosiciones[p.id]?.grupoArticulos).length}
-                /{posAprobables} posiciones aprobables completadas
+                /{posAprobables} posiciones completadas
               </div>
             )}
 
@@ -461,7 +479,9 @@ async function load() {
                 style={{...s.btnComplete, opacity: todasAprobablesCompletas() ? 1 : 0.5}}
                 onClick={handleEnviarALider}
                 disabled={!todasAprobablesCompletas() || saving}>
-                {saving ? 'Enviando…' : posRechazadas > 0 ? `Enviar ${posAprobables} pos. a Líder →` : 'Enviar a Líder →'}
+                {saving ? 'Enviando…' : posRechazadas > 0
+                  ? `Enviar ${posAprobables} pos. a Líder →`
+                  : 'Enviar a Líder →'}
               </button>
             </div>
           </div>
