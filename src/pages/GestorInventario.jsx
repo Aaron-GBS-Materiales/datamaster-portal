@@ -69,28 +69,30 @@ export default function GestorInventario() {
 
   // Rechazar una posición individual
   async function handleRechazarPosicion(posId) {
-    const motivo = formPosiciones[posId]?.motivoRechazo;
-    if (!motivo) return;
-    setSaving(true);
-    try {
-      await actualizarPosicion(posId, {
-        estado: 'Rechazada',
-        motivo_rechazo: motivo,
-      });
-      setFormPosiciones(prev => ({
-        ...prev,
-        [posId]: { ...prev[posId], rechazada: true, mostrarRechazo: false }
-      }));
-      // Actualizar posiciones en selected
-      setSelected(prev => ({
-        ...prev,
-        posiciones: prev.posiciones.map(p =>
-          p.id === posId ? {...p, estado: 'Rechazada'} : p
-        )
-      }));
-    } catch {}
-    setSaving(false);
+  const motivo = formPosiciones[posId]?.motivoRechazo;
+  if (!motivo) return;
+  setSaving(true);
+  try {
+    await actualizarPosicion(posId, {
+      estado: 'Rechazada',
+      motivo_rechazo: motivo,
+    });
+    setFormPosiciones(prev => ({
+      ...prev,
+      [posId]: { ...prev[posId], rechazada: true, mostrarRechazo: false }
+    }));
+    setSelected(prev => ({
+      ...prev,
+      posiciones: prev.posiciones.map(p =>
+        p.id === posId ? {...p, estado: 'Rechazada'} : p
+      )
+    }));
+  } catch (err) {
+    console.error('Error al rechazar posición:', err);
+    alert('Error: ' + (err?.message || JSON.stringify(err)));
   }
+  setSaving(false);
+}
 
   // Aprobar posiciones completas y avanzar solicitud
   async function handleEnviarALider() {
