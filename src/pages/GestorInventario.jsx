@@ -156,7 +156,7 @@ async function handleEnviarALider() {
   if (!todasAprobablesCompletas()) return;
   setSaving(true);
   try {
-    // 1. Guardar tipo, grupo y marcar estado_gestor = 'Revisada' en mis posiciones
+    // 1. Marcar mis posiciones como Revisadas
     await Promise.all(
       posicionesAprobables().map(p =>
         actualizarPosicion(p.id, {
@@ -168,15 +168,9 @@ async function handleEnviarALider() {
       )
     );
 
-    // 2. Verificar si TODAS las posiciones de la solicitud ya fueron revisadas
-    const todasListas = await todasPosicionesRevisadas(selected.id);
-
-    if (todasListas) {
-      // Todas las categorías fueron revisadas → avanzar solicitud al paso 3
-      await avanzarPaso(selected.id, 3, { asignado_a: user.email });
-    }
-    // Si no todas están listas, la solicitud se queda en paso 2
-    // hasta que el otro gestor también revise sus posiciones
+    // 2. Avanzar solicitud al paso 3 siempre que haya al menos
+    //    una posición revisada — el líder verá solo sus posiciones
+    await avanzarPaso(selected.id, 3, { asignado_a: user.email });
 
     setSelected(null);
     setFormPosiciones({});
