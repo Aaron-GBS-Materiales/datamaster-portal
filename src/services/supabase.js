@@ -316,15 +316,38 @@ export async function getNombreUsuario(email) {
   return data?.nombre || email;
 }
 
-// Verifica si todas las posiciones de una solicitud tienen estado_gestor = 'Revisada'
-export async function todasPosicionesRevisadas(solicitudId) {
+// Verifica si al menos una posición fue revisada por algún gestor
+// (para avanzar al paso 3 parcialmente)
+export async function hayPosicionesRevisadas(solicitudId) {
   const { data, error } = await supabase
     .from('posiciones')
     .select('estado_gestor')
     .eq('solicitud_id', solicitudId)
-    .neq('estado', 'Rechazada'); // excluir rechazadas
+    .eq('estado_gestor', 'Revisada');
   if (error) throw error;
-  return data.length > 0 && data.every(p => p.estado_gestor === 'Revisada');
+  return data.length > 0;
+}
+
+// Verifica si TODAS las posiciones no rechazadas fueron revisadas por gestor
+export async function todasPosicionesRevisadas(solicitudId) {
+  const { data, error } = await supabase
+    .from('posiciones')
+    .select('estado_gestor, estado')
+    .eq('solicitud_id', solicitudId);
+  if (error) throw error;
+  const activas = data.filter(p => p.estado !== 'Rechazada');
+  return activas.length > 0 && activas.every(p => p.estado_gestor === 'Revisada');
+}
+
+// Verifica si TODAS las posiciones no rechazadas fueron aprobadas por líder
+export async function todasPosicionesAprobadas(solicitudId) {
+  const { data, error } = await supabase
+    .from('posiciones')
+    .select('estado_lider, estado')
+    .eq('solicitud_id', solicitudId);
+  if (error) throw error;
+  const activas = data.filter(p => p.estado !== 'Rechazada');
+  return activas.length > 0 && activas.every(p => p.estado_lider === 'Aprobada');
 }
 
 // Verifica si todas las posiciones de una solicitud tienen estado_lider = 'Aprobada'
