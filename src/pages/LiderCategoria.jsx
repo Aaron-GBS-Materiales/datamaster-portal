@@ -58,44 +58,48 @@ export default function LiderCategoria() {
     return () => clearInterval(interval);
   }, []);
 
-async function load() {
-  setLoading(true);
-  try {
-    const paso3 = await getSolicitudesPorPaso(3);
-    const paso4 = await getSolicitudesPorPaso(4);
-    const paso5 = await getSolicitudesPorPaso(5);
-    let todas = [...paso3, ...paso4, ...paso5];
+  async function load() {
+    setLoading(true);
+    try {
+      const paso3 = await getSolicitudesPorPaso(3);
+      const paso4 = await getSolicitudesPorPaso(4);
+      const paso5 = await getSolicitudesPorPaso(5);
+      let todas = [...paso3, ...paso4, ...paso5];
 
-    // Filtrar solicitudes que tengan al menos una posición de mis categorías
-    const categoriasLider = user?.categorias;
-    if (categoriasLider && categoriasLider.length > 0) {
-      const dataFiltrada = await Promise.all(
-        todas.map(async sol => {
-          const pos = await getPosicionesBySolicitud(sol.id);
-          const misPosiciones = pos.filter(p => categoriasLider.includes(p.categoria));
-          if (misPosiciones.length === 0) return null;
-          return { ...sol, _misPosiciones: misPosiciones };
-        })
-      );
-      todas = dataFiltrada.filter(Boolean);
-    }
+      const categoriasLider = user?.categorias;
+      if (categoriasLider && categoriasLider.length > 0) {
+        const dataFiltrada = await Promise.all(
+          todas.map(async sol => {
+            const pos = await getPosicionesBySolicitud(sol.id);
+            const misPosiciones = pos.filter(p => categoriasLider.includes(p.categoria));
+            if (misPosiciones.length === 0) return null;
+            return { ...sol, _misPosiciones: misPosiciones };
+          })
+        );
+        todas = dataFiltrada.filter(Boolean);
+      }
 
-    setSolicitudes(todas);
+      setSolicitudes(todas);
 
-    const emailsUnicos = [...new Set(todas.map(s => s.asignado_a).filter(Boolean))];
-    const nombres = {};
-    await Promise.all(emailsUnicos.map(async email => {
-      nombres[email] = await getNombreUsuario(email);
-    }));
-    setNombresGestores(nombres);
-  } catch {}
-  setLoading(false);
-}
+      // Recopilar todos los emails de gestores de las posiciones
+      const emailsGestores = new Set();
+      todas.forEach(sol => {
+        (sol._misPosiciones || []).forEach(p => {
+          if (p.asignado_gestor) emailsGestores.add(p.asignado_gestor);
+        });
+      });
+
+      const nombres = {};
+      await Promise.all([...emailsGestores].map(async email => {
+        nombres[email] = await getNombreUsuario(email);
+      }));
+      setNombresGestores(nombres);
+    } catch {}
+    setLoading(false);
+  }
 
   async function handleRevisar(sol) {
     const todasPos = await getPosicionesBySolicitud(sol.id);
-
-    // Filtrar solo posiciones de las categorías del líder
     const categoriasLider = user?.categorias || [];
     const posFiltradas = categoriasLider.length > 0
       ? todasPos.filter(p => categoriasLider.includes(p.categoria))
@@ -149,39 +153,31 @@ async function load() {
     setSaving(false);
   }
 
-async function handleAprobarTodo() {
-  if (!hayAlgoAprobable()) return;
-  setSaving(true);
-  try {
-    // 1. Marcar mis posiciones como aprobadas por líder
-    await Promise.all(
-      posicionesAprobables().map(p =>
-        actualizarPosicion(p.id, {
-          estado:       'Aprobada',
-          estado_lider: 'Aprobada',
-        })
-      )
-    );
-
-    // 2. Verificar si TODAS las posiciones ya fueron aprobadas por su líder
-    const todasListas = await todasPosicionesAprobadas(selected.id);
-
-    if (todasListas) {
-      // Todos los líderes aprobaron → avanzar a Base de Datos
-      await avanzarPaso(selected.id, 4, {
-        aprobado_por_lider: true,
-        estado: 'Aprobada',
-      });
-    }
-    // Si no todas están listas, la solicitud se queda en paso 3
-    // hasta que el otro líder también apruebe sus posiciones
-
-    setSelected(null);
-    setFormPosiciones({});
-    load();
-  } catch {}
-  setSaving(false);
-}
+  async function handleAprobarTodo() {
+    if (!hayAlgoAprobable()) return;
+    setSaving(true);
+    try {
+      await Promise.all(
+        posicionesAprobables().map(p =>
+          actualizarPosicion(p.id, {
+            estado:       'Aprobada',
+            estado_lider: 'Aprobada',
+          })
+        )
+      );
+      const todasListas = await todasPosicionesAprobadas(selected.id);
+      if (todasListas) {
+        await avanzarPaso(selected.id, 4, {
+          aprobado_por_lider: true,
+          estado: 'Aprobada',
+        });
+      }
+      setSelected(null);
+      setFormPosiciones({});
+      load();
+    } catch {}
+    setSaving(false);
+  }
 
   async function handleRechazarTodo() {
     setSaving(true);
@@ -194,22 +190,26 @@ async function handleAprobarTodo() {
     setSaving(false);
   }
 
-  function nombreGestor(email) {
-    if (!email) return null;
-    return nombresGestores[email] || email.split('@')[0];
+  // Obtener el gestor de las posiciones filtradas de una solicitud
+  function gestorDeMisPosiciones(sol) {
+    const misPosiciones = sol._misPosiciones || [];
+    const emailGestor = misPosiciones.find(p => p.asignado_gestor)?.asignado_gestor;
+    if (!emailGestor) return null;
+    return nombresGestores[emailGestor] || emailGestor.split('@')[0];
   }
 
-const pendientes = solicitudes.filter(s => {
-  if (s.paso !== 3) return false;
-  const misPosiciones = s._misPosiciones || [];
-  return misPosiciones.some(p => p.estado_lider !== 'Aprobada');
-});
+  const pendientes = solicitudes.filter(s => {
+    if (s.paso !== 3) return false;
+    const misPosiciones = s._misPosiciones || [];
+    return misPosiciones.some(p => p.estado_lider !== 'Aprobada');
+  });
 
-const procesadas = solicitudes.filter(s => {
-  if (s.paso > 3) return true;
-  const misPosiciones = s._misPosiciones || [];
-  return misPosiciones.length > 0 && misPosiciones.every(p => p.estado_lider === 'Aprobada');
-});
+  const procesadas = solicitudes.filter(s => {
+    if (s.paso > 3) return true;
+    const misPosiciones = s._misPosiciones || [];
+    return misPosiciones.length > 0 && misPosiciones.every(p => p.estado_lider === 'Aprobada');
+  });
+
   const posRechazadas = selected ? Object.values(formPosiciones).filter(f => f.rechazada).length : 0;
   const posAprobables = selected ? posicionesAprobables().length : 0;
 
@@ -254,26 +254,29 @@ const procesadas = solicitudes.filter(s => {
                       </span>
                     </td>
                     <td style={s.td}>{FLAG[sol.pais]||''} {sol.pais}</td>
+
+                    {/* Gestor de MIS posiciones */}
                     <td style={s.td}>
-                      {sol.asignado_a ? (
+                      {gestorDeMisPosiciones(sol) ? (
                         <span style={{display:'flex', alignItems:'center', gap:6}}>
                           <span style={{width:24, height:24, borderRadius:'50%', background:'#e0e7ff',
                             color:'#4f46e5', fontSize:10, fontWeight:700, flexShrink:0,
                             display:'inline-flex', alignItems:'center', justifyContent:'center'}}>
-                            {nombreGestor(sol.asignado_a).charAt(0).toUpperCase()}
+                            {gestorDeMisPosiciones(sol).charAt(0).toUpperCase()}
                           </span>
                           <span style={{fontSize:12, color:'#374151', fontWeight:500}}>
-                            {nombreGestor(sol.asignado_a)}
+                            {gestorDeMisPosiciones(sol)}
                           </span>
                         </span>
                       ) : (
                         <span style={{color:'#9ca3af', fontSize:12}}>—</span>
                       )}
                     </td>
+
                     <td style={{...s.td, textAlign:'center'}}>
                       <span style={{background:'#f5f6fa', border:'1px solid #e2e5ef', borderRadius:8,
                         padding:'2px 10px', fontSize:12, fontWeight:700, color:'#374151'}}>
-                        {sol.posiciones_count ?? '—'}
+                        {(sol._misPosiciones || []).length}
                       </span>
                     </td>
                     <td style={{...s.td, fontSize:11, color:'#374151', whiteSpace:'nowrap'}}>
@@ -334,15 +337,15 @@ const procesadas = solicitudes.filter(s => {
                     </td>
                     <td style={s.td}>{FLAG[sol.pais]||''} {sol.pais}</td>
                     <td style={s.td}>
-                      {sol.asignado_a ? (
+                      {gestorDeMisPosiciones(sol) ? (
                         <span style={{display:'flex', alignItems:'center', gap:6}}>
                           <span style={{width:22, height:22, borderRadius:'50%', background:'#e0e7ff',
                             color:'#4f46e5', fontSize:10, fontWeight:700, flexShrink:0,
                             display:'inline-flex', alignItems:'center', justifyContent:'center'}}>
-                            {nombreGestor(sol.asignado_a).charAt(0).toUpperCase()}
+                            {gestorDeMisPosiciones(sol).charAt(0).toUpperCase()}
                           </span>
                           <span style={{fontSize:12, color:'#374151'}}>
-                            {nombreGestor(sol.asignado_a)}
+                            {gestorDeMisPosiciones(sol)}
                           </span>
                         </span>
                       ) : (
@@ -377,7 +380,12 @@ const procesadas = solicitudes.filter(s => {
               </div>
               <div style={s.infoChip}>
                 <div style={s.infoChipLabel}>GESTOR</div>
-                <div style={s.infoChipVal}>{nombreGestor(selected.asignado_a) || '—'}</div>
+                <div style={s.infoChipVal}>
+                  {selected.posiciones?.find(p => p.asignado_gestor)?.asignado_gestor
+                    ? (nombresGestores[selected.posiciones.find(p => p.asignado_gestor).asignado_gestor] ||
+                       selected.posiciones.find(p => p.asignado_gestor).asignado_gestor.split('@')[0])
+                    : '—'}
+                </div>
               </div>
               <div style={s.infoChip}>
                 <div style={s.infoChipLabel}>TIEMPO SIN LIBERAR</div>
@@ -388,7 +396,6 @@ const procesadas = solicitudes.filter(s => {
               </div>
             </div>
 
-            {/* Aviso de posiciones filtradas */}
             {user?.categorias?.length > 0 && (
               <div style={{background:'#eff4ff', border:'1px solid #bfdbfe', borderRadius:8,
                 padding:'8px 12px', fontSize:12, color:'#2563eb', marginBottom:16}}>
@@ -430,7 +437,6 @@ const procesadas = solicitudes.filter(s => {
                         <span style={{fontSize:11, fontWeight:700, color:'#6b7280', letterSpacing:'.5px'}}>
                           POSICIÓN {idx + 1}
                         </span>
-                        {/* Badge de categoría */}
                         {pos.categoria && (
                           <span style={{fontSize:10, fontWeight:600, padding:'1px 6px', borderRadius:8,
                             background:'#ede9fe', color:'#7c3aed'}}>
