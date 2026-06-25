@@ -1,7 +1,7 @@
 // pages/LiderCategoria.jsx
 import { useState, useEffect } from 'react';
 import { getSolicitudesPorPaso, avanzarPaso, rechazarSolicitud,
-         getPosicionesBySolicitud, actualizarPosicion } from '../services/supabase';
+         getPosicionesBySolicitud, actualizarPosicion, getNombreUsuario } from '../services/supabase';
 
 const FLAG = { Perú:'🇵🇪', Colombia:'🇨🇴', Chile:'🇨🇱', Ecuador:'🇪🇨', Bolivia:'🇧🇴' };
 
@@ -40,6 +40,7 @@ function bgTiempo(iso) {
 
 export default function LiderCategoria() {
   const [solicitudes, setSolicitudes] = useState([]);
+  const [nombresGestores, setNombresGestores] = useState({});
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState(null);
   const [formPosiciones, setFormPosiciones] = useState({});
@@ -48,7 +49,6 @@ export default function LiderCategoria() {
 
   useEffect(() => { load(); }, []);
 
-  // Refresca tiempos cada minuto
   useEffect(() => {
     const interval = setInterval(() => setTick(t => t + 1), 60000);
     return () => clearInterval(interval);
@@ -60,7 +60,16 @@ export default function LiderCategoria() {
       const paso3 = await getSolicitudesPorPaso(3);
       const paso4 = await getSolicitudesPorPaso(4);
       const paso5 = await getSolicitudesPorPaso(5);
-      setSolicitudes([...paso3, ...paso4, ...paso5]);
+      const todas = [...paso3, ...paso4, ...paso5];
+      setSolicitudes(todas);
+
+      // Cargar nombres reales de gestores
+      const emailsUnicos = [...new Set(todas.map(s => s.asignado_a).filter(Boolean))];
+      const nombres = {};
+      await Promise.all(emailsUnicos.map(async email => {
+        nombres[email] = await getNombreUsuario(email);
+      }));
+      setNombresGestores(nombres);
     } catch {}
     setLoading(false);
   }
@@ -142,6 +151,12 @@ export default function LiderCategoria() {
     setSaving(false);
   }
 
+  // Helper: nombre del gestor a partir de su email
+  function nombreGestor(email) {
+    if (!email) return null;
+    return nombresGestores[email] || email.split('@')[0];
+  }
+
   const pendientes  = solicitudes.filter(s => s.paso === 3);
   const procesadas  = solicitudes.filter(s => s.paso > 3);
   const posRechazadas = selected ? Object.values(formPosiciones).filter(f => f.rechazada).length : 0;
@@ -197,21 +212,22 @@ export default function LiderCategoria() {
                     {/* País */}
                     <td style={s.td}>{FLAG[sol.pais]||''} {sol.pais}</td>
 
-                    {/* Gestor Asignado */}
+                    {/* Gestor Asignado — nombre real */}
                     <td style={s.td}>
-                      <span style={{fontSize:12, color:'#374151'}}>
-                        {sol.asignado_a
-                          ? <span style={{display:'flex', alignItems:'center', gap:5}}>
-                              <span style={{width:22, height:22, borderRadius:'50%', background:'#e0e7ff',
-                                color:'#4f46e5', fontSize:10, fontWeight:700,
-                                display:'inline-flex', alignItems:'center', justifyContent:'center'}}>
-                                {sol.asignado_a.charAt(0).toUpperCase()}
-                              </span>
-                              {sol.asignado_a.split('@')[0]}
-                            </span>
-                          : <span style={{color:'#9ca3af'}}>—</span>
-                        }
-                      </span>
+                      {sol.asignado_a ? (
+                        <span style={{display:'flex', alignItems:'center', gap:6}}>
+                          <span style={{width:24, height:24, borderRadius:'50%', background:'#e0e7ff',
+                            color:'#4f46e5', fontSize:10, fontWeight:700, flexShrink:0,
+                            display:'inline-flex', alignItems:'center', justifyContent:'center'}}>
+                            {nombreGestor(sol.asignado_a).charAt(0).toUpperCase()}
+                          </span>
+                          <span style={{fontSize:12, color:'#374151', fontWeight:500}}>
+                            {nombreGestor(sol.asignado_a)}
+                          </span>
+                        </span>
+                      ) : (
+                        <span style={{color:'#9ca3af', fontSize:12}}>—</span>
+                      )}
                     </td>
 
                     {/* Posiciones */}
@@ -222,31 +238,27 @@ export default function LiderCategoria() {
                       </span>
                     </td>
 
-                    {/* Fecha y Hora (de creación original) */}
+                    {/* Fecha y Hora */}
                     <td style={{...s.td, fontSize:11, color:'#374151', whiteSpace:'nowrap'}}>
                       {formatFecha(sol.fecha_recepcion)}
                     </td>
 
-                    {/* Tiempo desde creación */}
+                    {/* Tiempo total desde creación */}
                     <td style={{...s.td, whiteSpace:'nowrap'}}>
-                      <span style={{
-                        fontSize:11, fontWeight:700,
+                      <span style={{fontSize:11, fontWeight:700,
                         color: colorTiempo(sol.fecha_recepcion),
                         background: bgTiempo(sol.fecha_recepcion),
-                        padding:'2px 8px', borderRadius:10,
-                      }}>
+                        padding:'2px 8px', borderRadius:10}}>
                         ⏱ {tiempoTranscurrido(sol.fecha_recepcion)}
                       </span>
                     </td>
 
-                    {/* Tiempo sin Liberación (desde que llegó al Líder = fecha_asignado_lider o fecha_recepcion como fallback) */}
+                    {/* Tiempo sin Liberación — desde que llegó al Líder */}
                     <td style={{...s.td, whiteSpace:'nowrap'}}>
-                      <span style={{
-                        fontSize:11, fontWeight:700,
+                      <span style={{fontSize:11, fontWeight:700,
                         color: colorTiempo(sol.fecha_asignado_lider || sol.fecha_recepcion),
                         background: bgTiempo(sol.fecha_asignado_lider || sol.fecha_recepcion),
-                        padding:'2px 8px', borderRadius:10,
-                      }}>
+                        padding:'2px 8px', borderRadius:10}}>
                         🔒 {tiempoTranscurrido(sol.fecha_asignado_lider || sol.fecha_recepcion)}
                       </span>
                     </td>
@@ -297,10 +309,20 @@ export default function LiderCategoria() {
                     </td>
                     <td style={s.td}>{FLAG[sol.pais]||''} {sol.pais}</td>
                     <td style={s.td}>
-                      {sol.asignado_a
-                        ? <span style={{fontSize:12, color:'#374151'}}>{sol.asignado_a.split('@')[0]}</span>
-                        : <span style={{color:'#9ca3af', fontSize:12}}>—</span>
-                      }
+                      {sol.asignado_a ? (
+                        <span style={{display:'flex', alignItems:'center', gap:6}}>
+                          <span style={{width:22, height:22, borderRadius:'50%', background:'#e0e7ff',
+                            color:'#4f46e5', fontSize:10, fontWeight:700, flexShrink:0,
+                            display:'inline-flex', alignItems:'center', justifyContent:'center'}}>
+                            {nombreGestor(sol.asignado_a).charAt(0).toUpperCase()}
+                          </span>
+                          <span style={{fontSize:12, color:'#374151'}}>
+                            {nombreGestor(sol.asignado_a)}
+                          </span>
+                        </span>
+                      ) : (
+                        <span style={{color:'#9ca3af', fontSize:12}}>—</span>
+                      )}
                     </td>
                     <td style={s.td}>
                       <span style={{fontSize:11, fontWeight:600, padding:'3px 8px', borderRadius:12,
@@ -335,7 +357,7 @@ export default function LiderCategoria() {
               </div>
               <div style={s.infoChip}>
                 <div style={s.infoChipLabel}>GESTOR</div>
-                <div style={s.infoChipVal}>{selected.asignado_a ? selected.asignado_a.split('@')[0] : '—'}</div>
+                <div style={s.infoChipVal}>{nombreGestor(selected.asignado_a) || '—'}</div>
               </div>
               <div style={s.infoChip}>
                 <div style={s.infoChipLabel}>TIEMPO SIN LIBERAR</div>
@@ -367,7 +389,7 @@ export default function LiderCategoria() {
               </div>
 
               {selected.posiciones && selected.posiciones.map((pos, idx) => {
-                const posForm  = formPosiciones[pos.id] || {};
+                const posForm   = formPosiciones[pos.id] || {};
                 const rechazada = posForm.rechazada;
 
                 return (
@@ -508,6 +530,3 @@ const s = {
   btnApprove:    { padding:'10px 22px', background:'#16a34a', color:'#fff', border:'none', borderRadius:8, fontSize:14, fontWeight:700, cursor:'pointer' },
   btnRechazarPos:{ padding:'6px 12px', background:'#fff', color:'#dc2626', border:'1px solid #fecaca', borderRadius:6, fontSize:11, fontWeight:600, cursor:'pointer', width:'100%' },
 };
-
-import { getSolicitudesPorPaso, avanzarPaso, rechazarSolicitud,
-         getPosicionesBySolicitud, actualizarPosicion, getNombreUsuario } from '../services/supabase';
