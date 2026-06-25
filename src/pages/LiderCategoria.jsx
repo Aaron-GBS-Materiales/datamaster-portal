@@ -1,7 +1,8 @@
 // pages/LiderCategoria.jsx
 import { useState, useEffect } from 'react';
 import { getSolicitudesPorPaso, avanzarPaso, rechazarSolicitud,
-         getPosicionesBySolicitud, actualizarPosicion, getNombreUsuario } from '../services/supabase';
+         getPosicionesBySolicitud, actualizarPosicion, getNombreUsuario,
+         todasPosicionesAprobadas } from '../services/supabase';
 import { useAuth } from '../context/AuthContext';
 import { EstadoBadge } from '../utils/estadoHelper';
 
@@ -148,22 +149,39 @@ export default function LiderCategoria() {
     setSaving(false);
   }
 
-  async function handleAprobarTodo() {
-    if (!hayAlgoAprobable()) return;
-    setSaving(true);
-    try {
-      await Promise.all(
-        posicionesAprobables().map(p =>
-          actualizarPosicion(p.id, { estado: 'Aprobada' })
-        )
-      );
-      await avanzarPaso(selected.id, 4, { aprobado_por_lider: true, estado: 'Aprobada' });
-      setSelected(null);
-      setFormPosiciones({});
-      load();
-    } catch {}
-    setSaving(false);
-  }
+async function handleAprobarTodo() {
+  if (!hayAlgoAprobable()) return;
+  setSaving(true);
+  try {
+    // 1. Marcar estado_lider = 'Aprobada' solo en mis posiciones
+    await Promise.all(
+      posicionesAprobables().map(p =>
+        actualizarPosicion(p.id, { 
+          estado:       'Aprobada',
+          estado_lider: 'Aprobada',
+        })
+      )
+    );
+
+    // 2. Verificar si TODAS las posiciones ya fueron aprobadas por su líder
+    const todasListas = await todasPosicionesAprobadas(selected.id);
+
+    if (todasListas) {
+      // Todas las categorías fueron aprobadas → avanzar al paso 4 (Base de Datos)
+      await avanzarPaso(selected.id, 4, {
+        aprobado_por_lider: true,
+        estado: 'Aprobada',
+      });
+    }
+    // Si no todas están listas, la solicitud se queda en paso 3
+    // hasta que el otro líder también apruebe sus posiciones
+
+    setSelected(null);
+    setFormPosiciones({});
+    load();
+  } catch {}
+  setSaving(false);
+}
 
   async function handleRechazarTodo() {
     setSaving(true);
