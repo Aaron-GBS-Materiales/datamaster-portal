@@ -109,55 +109,48 @@ export async function getSolicitudes(emailFilter = null) {
 }
 
 export async function createSolicitud(data) {
-  // Obtener país del usuario (por defecto Perú)
   const pais = data.pais || 'Perú';
   const ticket_id = generateTicketID(pais);
-  
-  // Detectar flujo: UNACEM PERÚ = extendido, otras = directo
   const flujo = data.unidad_negocio === 'UNACEM PERU' ? 'extendido' : 'directo';
-  const paso = flujo === 'extendido' ? 2 : 4;
-  
-// 1. Crear solicitud principal
+  const paso  = flujo === 'extendido' ? 2 : 4;
+
+  // 1. Crear solicitud principal
   const { data: sol, error: errSol } = await supabase
     .from('solicitudes')
     .insert([{
       ticket_id,
       email_solicitante:  data.email_solicitante,
       nombre_solicitante: data.nombre_solicitante,
-      pais:               pais,
+      pais,
       unidad_negocio:     data.unidad_negocio,
       tipo_solicitud:     'Creación',
-      categoria:          data.categoria || '',
-      flujo:              flujo,
-      paso:               paso,
+      flujo,
+      paso,
       estado:             'Pendiente',
       fecha_recepcion:    new Date().toISOString(),
     }])
     .select()
     .single();
-    
   if (errSol) throw errSol;
 
-  // 2. Crear posiciones
+  // 2. Crear posiciones — cada una con su categoría
   if (data.posiciones && data.posiciones.length > 0) {
     const posicionesData = data.posiciones.map(p => ({
-      solicitud_id:   sol.id,
-      denominacion:   p.denominacion,
-      unidad_medida:  p.unidad_medida,
-      texto_pedido:   p.texto_pedido || '',
-      estado:         'Pendiente',
+      solicitud_id:  sol.id,
+      denominacion:  p.denominacion,
+      unidad_medida: p.unidad_medida,
+      texto_pedido:  p.texto_pedido || '',
+      categoria:     p.categoria || '',
+      estado:        'Pendiente',
     }));
-
     const { error: errPos } = await supabase
       .from('posiciones')
       .insert(posicionesData);
-
     if (errPos) throw errPos;
   }
 
   return sol.ticket_id;
 }
-
 export async function updateEstado(id, estado) {
   const { error } = await supabase
     .from('solicitudes')
@@ -299,6 +292,18 @@ export async function actualizarPosicion(posicionId, datos) {
     throw error;
   }
   return data;
+}
+
+// Obtener gestores por categoría
+export async function getGestoresPorCategoria(categoria) {
+  const { data, error } = await supabase
+    .from('usuarios')
+    .select('*')
+    .eq('rol', 'GESTOR DE INVENTARIO')
+    .eq('activo', true)
+    .contains('categorias', [categoria]);
+  if (error) throw error;
+  return data || [];
 }
 
 export async function getNombreUsuario(email) {
