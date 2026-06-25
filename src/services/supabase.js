@@ -229,10 +229,10 @@ export async function getSolicitudesPorRol(rol) {
 }
 
 export async function avanzarPaso(id, paso, datos = {}) {
-  const update = { paso, ...datos };
+  const extra = paso === 3 ? { fecha_asignado_lider: new Date().toISOString() } : {};
   const { error } = await supabase
     .from('solicitudes')
-    .update(update)
+    .update({ paso, ...datos, ...extra })
     .eq('id', id);
   if (error) throw error;
 }
