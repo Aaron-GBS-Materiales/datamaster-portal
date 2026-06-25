@@ -295,3 +295,13 @@ export async function actualizarPosicion(posicionId, datos) {
   }
   return data;
 }
+
+export async function getNombreUsuario(email) {
+  const { data, error } = await supabase
+    .from('usuarios')
+    .select('nombre')
+    .eq('email', email)
+    .single();
+  if (error) return email; // fallback: muestra email si no encuentra
+  return data?.nombre || email;
+}
