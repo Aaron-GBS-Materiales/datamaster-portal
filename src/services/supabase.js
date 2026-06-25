@@ -35,6 +35,7 @@ export async function createUser(u) {
       pais:           u.pais,
       unidad_negocio: u.unidadNegocio,
       rol:            u.rol,
+      categorias:     u.categorias || [],
       activo:         true,
     }])
     .select()
@@ -116,7 +117,7 @@ export async function createSolicitud(data) {
   const flujo = data.unidad_negocio === 'UNACEM PERU' ? 'extendido' : 'directo';
   const paso = flujo === 'extendido' ? 2 : 4;
   
-  // 1. Crear solicitud principal
+// 1. Crear solicitud principal
   const { data: sol, error: errSol } = await supabase
     .from('solicitudes')
     .insert([{
@@ -126,6 +127,7 @@ export async function createSolicitud(data) {
       pais:               pais,
       unidad_negocio:     data.unidad_negocio,
       tipo_solicitud:     'Creación',
+      categoria:          data.categoria || '',
       flujo:              flujo,
       paso:               paso,
       estado:             'Pendiente',
