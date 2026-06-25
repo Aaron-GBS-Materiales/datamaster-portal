@@ -508,3 +508,6 @@ const s = {
   btnApprove:    { padding:'10px 22px', background:'#16a34a', color:'#fff', border:'none', borderRadius:8, fontSize:14, fontWeight:700, cursor:'pointer' },
   btnRechazarPos:{ padding:'6px 12px', background:'#fff', color:'#dc2626', border:'1px solid #fecaca', borderRadius:6, fontSize:11, fontWeight:600, cursor:'pointer', width:'100%' },
 };
+
+import { getSolicitudesPorPaso, avanzarPaso, rechazarSolicitud,
+         getPosicionesBySolicitud, actualizarPosicion, getNombreUsuario } from '../services/supabase';
