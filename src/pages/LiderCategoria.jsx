@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react';
 import { getSolicitudesPorPaso, avanzarPaso, rechazarSolicitud,
          getPosicionesBySolicitud, actualizarPosicion, getNombreUsuario } from '../services/supabase';
+import { useAuth } from '../context/AuthContext';
 import { EstadoBadge } from '../utils/estadoHelper';
 
 const FLAG = { Perú:'🇵🇪', Colombia:'🇨🇴', Chile:'🇨🇱', Ecuador:'🇪🇨', Bolivia:'🇧🇴' };
@@ -40,6 +41,7 @@ function bgTiempo(iso) {
 }
 
 export default function LiderCategoria() {
+  const { user } = useAuth();
   const [solicitudes, setSolicitudes] = useState([]);
   const [nombresGestores, setNombresGestores] = useState({});
   const [loading, setLoading] = useState(true);
@@ -61,7 +63,22 @@ export default function LiderCategoria() {
       const paso3 = await getSolicitudesPorPaso(3);
       const paso4 = await getSolicitudesPorPaso(4);
       const paso5 = await getSolicitudesPorPaso(5);
-      const todas = [...paso3, ...paso4, ...paso5];
+      let todas = [...paso3, ...paso4, ...paso5];
+
+      // Filtrar solicitudes que tengan al menos una posición
+      // de las categorías del líder
+      const categoriasLider = user?.categorias;
+      if (categoriasLider && categoriasLider.length > 0) {
+        const dataFiltrada = await Promise.all(
+          todas.map(async sol => {
+            const pos = await getPosicionesBySolicitud(sol.id);
+            const tieneMiCategoria = pos.some(p => categoriasLider.includes(p.categoria));
+            return tieneMiCategoria ? sol : null;
+          })
+        );
+        todas = dataFiltrada.filter(Boolean);
+      }
+
       setSolicitudes(todas);
 
       const emailsUnicos = [...new Set(todas.map(s => s.asignado_a).filter(Boolean))];
@@ -75,10 +92,18 @@ export default function LiderCategoria() {
   }
 
   async function handleRevisar(sol) {
-    const pos = await getPosicionesBySolicitud(sol.id);
-    setSelected({...sol, posiciones: pos});
+    const todasPos = await getPosicionesBySolicitud(sol.id);
+
+    // Filtrar solo posiciones de las categorías del líder
+    const categoriasLider = user?.categorias || [];
+    const posFiltradas = categoriasLider.length > 0
+      ? todasPos.filter(p => categoriasLider.includes(p.categoria))
+      : todasPos;
+
+    setSelected({...sol, posiciones: posFiltradas});
+
     const initForm = {};
-    pos.forEach(p => {
+    posFiltradas.forEach(p => {
       initForm[p.id] = {
         rechazada:      p.estado === 'Rechazada',
         motivoRechazo:  '',
@@ -243,7 +268,6 @@ export default function LiderCategoria() {
                         🔒 {tiempoTranscurrido(sol.fecha_asignado_lider || sol.fecha_recepcion)}
                       </span>
                     </td>
-                    {/* ── ESTADO con EstadoBadge ── */}
                     <td style={s.td}>
                       <EstadoBadge paso={sol.paso} flujo={sol.flujo} />
                     </td>
@@ -298,7 +322,6 @@ export default function LiderCategoria() {
                         <span style={{color:'#9ca3af', fontSize:12}}>—</span>
                       )}
                     </td>
-                    {/* ── ESTADO con EstadoBadge ── */}
                     <td style={s.td}>
                       <EstadoBadge paso={sol.paso} flujo={sol.flujo} />
                     </td>
@@ -338,6 +361,15 @@ export default function LiderCategoria() {
               </div>
             </div>
 
+            {/* Aviso de posiciones filtradas */}
+            {user?.categorias?.length > 0 && (
+              <div style={{background:'#eff4ff', border:'1px solid #bfdbfe', borderRadius:8,
+                padding:'8px 12px', fontSize:12, color:'#2563eb', marginBottom:16}}>
+                📋 Mostrando solo las posiciones de tus categorías:
+                <strong> {user.categorias.join(', ')}</strong>
+              </div>
+            )}
+
             {selected.posiciones?.length > 1 && (
               <div style={s.resumenBar}>
                 <span style={{color:'#16a34a', fontWeight:600}}>{posAprobables} aprobables</span>
@@ -346,14 +378,14 @@ export default function LiderCategoria() {
                   <span style={{color:'#dc2626', fontWeight:600}}>{posRechazadas} rechazadas</span>
                 </>}
                 <span style={{color:'#6b7280', marginLeft:'auto', fontSize:11}}>
-                  Total: {selected.posiciones.length} posiciones
+                  {selected.posiciones.length} posiciones asignadas a ti
                 </span>
               </div>
             )}
 
             <div style={s.posicionesBox}>
               <div style={{fontSize:12, fontWeight:700, color:'#0f1d3a', marginBottom:12}}>
-                Posiciones de la solicitud ({selected.posiciones?.length || 0})
+                Posiciones asignadas ({selected.posiciones?.length || 0})
               </div>
 
               {selected.posiciones && selected.posiciones.map((pos, idx) => {
@@ -367,9 +399,18 @@ export default function LiderCategoria() {
                     opacity: rechazada ? 0.6 : 1,
                   }}>
                     <div style={{display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:10}}>
-                      <span style={{fontSize:11, fontWeight:700, color:'#6b7280', letterSpacing:'.5px'}}>
-                        POSICIÓN {idx + 1}
-                      </span>
+                      <div style={{display:'flex', alignItems:'center', gap:8}}>
+                        <span style={{fontSize:11, fontWeight:700, color:'#6b7280', letterSpacing:'.5px'}}>
+                          POSICIÓN {idx + 1}
+                        </span>
+                        {/* Badge de categoría */}
+                        {pos.categoria && (
+                          <span style={{fontSize:10, fontWeight:600, padding:'1px 6px', borderRadius:8,
+                            background:'#ede9fe', color:'#7c3aed'}}>
+                            {pos.categoria}
+                          </span>
+                        )}
+                      </div>
                       {rechazada ? (
                         <span style={{fontSize:10, fontWeight:700, color:'#dc2626', background:'#fef2f2', padding:'2px 8px', borderRadius:10}}>✗ Rechazada</span>
                       ) : (
