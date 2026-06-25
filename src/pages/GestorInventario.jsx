@@ -3,10 +3,10 @@ import { getSolicitudesPorPaso, avanzarPaso, rechazarSolicitud,
          getPosicionesBySolicitud, actualizarPosicion } from '../services/supabase';
 import { useAuth } from '../context/AuthContext';
 import { TIPOS_MATERIAL, GRUPOS_ARTICULOS } from '../constants/materiales';
+import { EstadoBadge } from '../utils/estadoHelper';
 
 const FLAG = { Perú:'🇵🇪', Colombia:'🇨🇴', Chile:'🇨🇱', Ecuador:'🇪🇨', Bolivia:'🇧🇴' };
 
-// Formatea fecha y hora
 function formatFecha(iso) {
   if (!iso) return '—';
   const d = new Date(iso);
@@ -14,7 +14,6 @@ function formatFecha(iso) {
     + ' ' + d.toLocaleTimeString('es-PE', { hour:'2-digit', minute:'2-digit' });
 }
 
-// Calcula tiempo transcurrido
 function tiempoTranscurrido(iso) {
   if (!iso) return '—';
   const diff = Date.now() - new Date(iso).getTime();
@@ -26,13 +25,19 @@ function tiempoTranscurrido(iso) {
   return `${mins}m`;
 }
 
-// Color según urgencia
 function colorTiempo(iso) {
   if (!iso) return '#6b7280';
   const horas = (Date.now() - new Date(iso).getTime()) / 3600000;
-  if (horas > 48) return '#dc2626'; // rojo > 2 días
-  if (horas > 24) return '#f59e0b'; // amarillo > 1 día
-  return '#16a34a';                 // verde < 1 día
+  if (horas > 48) return '#dc2626';
+  if (horas > 24) return '#f59e0b';
+  return '#16a34a';
+}
+
+function bgTiempo(iso) {
+  const c = colorTiempo(iso);
+  if (c === '#dc2626') return '#fef2f2';
+  if (c === '#f59e0b') return '#fffbeb';
+  return '#dcfce7';
 }
 
 export default function GestorInventario() {
@@ -46,7 +51,6 @@ export default function GestorInventario() {
 
   useEffect(() => { load(); }, []);
 
-  // Refresca el tiempo transcurrido cada minuto
   useEffect(() => {
     const interval = setInterval(() => setTick(t => t + 1), 60000);
     return () => clearInterval(interval);
@@ -156,7 +160,7 @@ export default function GestorInventario() {
     setSaving(false);
   }
 
-  const pendientes = solicitudes.filter(s => s.paso === 2);
+  const pendientes  = solicitudes.filter(s => s.paso === 2);
   const procesadas  = solicitudes.filter(s => s.paso > 2);
   const posRechazadas = selected ? Object.values(formPosiciones).filter(f => f.rechazada).length : 0;
   const posAprobables = selected ? posicionesAprobables().length : 0;
@@ -189,49 +193,39 @@ export default function GestorInventario() {
               <tbody>
                 {pendientes.map(sol => (
                   <tr key={sol.id}>
-                    {/* Ticket */}
                     <td style={{...s.td, fontFamily:'monospace', color:'#2563eb', fontWeight:600, whiteSpace:'nowrap'}}>
                       {sol.ticket_id}
                     </td>
-                    {/* Solicitante */}
                     <td style={s.td}>{sol.nombre_solicitante}</td>
-                    {/* Unidad de Negocio */}
-                    <td style={{...s.td, fontSize:12}}>
+                    <td style={s.td}>
                       <span style={{background:'#eff4ff', color:'#2563eb', padding:'2px 8px', borderRadius:10, fontWeight:600, fontSize:11}}>
                         {sol.unidad_negocio || '—'}
                       </span>
                     </td>
-                    {/* País */}
                     <td style={s.td}>{FLAG[sol.pais]||''} {sol.pais}</td>
-                    {/* Cantidad Posiciones */}
                     <td style={{...s.td, textAlign:'center'}}>
-                      <span style={{background:'#f5f6fa', border:'1px solid #e2e5ef', borderRadius:8, padding:'2px 10px', fontSize:12, fontWeight:700, color:'#374151'}}>
+                      <span style={{background:'#f5f6fa', border:'1px solid #e2e5ef', borderRadius:8,
+                        padding:'2px 10px', fontSize:12, fontWeight:700, color:'#374151'}}>
                         {sol.posiciones_count ?? '—'}
                       </span>
                     </td>
-                    {/* Fecha y Hora */}
                     <td style={{...s.td, fontSize:11, color:'#374151', whiteSpace:'nowrap'}}>
                       {formatFecha(sol.fecha_recepcion)}
                     </td>
-                    {/* Tiempo transcurrido */}
                     <td style={{...s.td, whiteSpace:'nowrap'}}>
                       <span style={{
                         fontSize:11, fontWeight:700,
                         color: colorTiempo(sol.fecha_recepcion),
-                        background: colorTiempo(sol.fecha_recepcion) === '#dc2626' ? '#fef2f2'
-                          : colorTiempo(sol.fecha_recepcion) === '#f59e0b' ? '#fffbeb' : '#dcfce7',
+                        background: bgTiempo(sol.fecha_recepcion),
                         padding:'2px 8px', borderRadius:10,
                       }}>
                         ⏱ {tiempoTranscurrido(sol.fecha_recepcion)}
                       </span>
                     </td>
-                    {/* Estado */}
+                    {/* ── ESTADO con EstadoBadge ── */}
                     <td style={s.td}>
-                      <span style={{fontSize:11, fontWeight:600, padding:'3px 8px', borderRadius:12, background:'#eff4ff', color:'#2563eb'}}>
-                        Paso 2
-                      </span>
+                      <EstadoBadge paso={sol.paso} flujo={sol.flujo} />
                     </td>
-                    {/* Acción */}
                     <td style={s.td}>
                       <button style={s.btnRevisar} onClick={() => handleRevisar(sol)}>Revisar →</button>
                     </td>
@@ -261,18 +255,15 @@ export default function GestorInventario() {
                   <tr key={sol.id} style={{opacity:.75}}>
                     <td style={{...s.td, fontFamily:'monospace', color:'#2563eb', fontWeight:600}}>{sol.ticket_id}</td>
                     <td style={s.td}>{sol.nombre_solicitante}</td>
-                    <td style={{...s.td, fontSize:12}}>
+                    <td style={s.td}>
                       <span style={{background:'#f5f6fa', color:'#374151', padding:'2px 8px', borderRadius:10, fontSize:11}}>
                         {sol.unidad_negocio || '—'}
                       </span>
                     </td>
                     <td style={s.td}>{FLAG[sol.pais]||''} {sol.pais}</td>
+                    {/* ── ESTADO con EstadoBadge ── */}
                     <td style={s.td}>
-                      <span style={{fontSize:11, fontWeight:600, padding:'3px 8px', borderRadius:12,
-                        background: sol.estado==='Rechazada'?'#fef2f2':'#dcfce7',
-                        color: sol.estado==='Rechazada'?'#dc2626':'#16a34a'}}>
-                        {sol.estado}
-                      </span>
+                      <EstadoBadge paso={sol.paso} flujo={sol.flujo} />
                     </td>
                     <td style={{...s.td, fontSize:11, color:'#6b7280', whiteSpace:'nowrap'}}>
                       {formatFecha(sol.fecha_recepcion)}
@@ -292,7 +283,6 @@ export default function GestorInventario() {
             <h3 style={s.mTitle}>Revisar y Completar</h3>
             <p style={s.mSub}>{selected.ticket_id} · {selected.nombre_solicitante}</p>
 
-            {/* Info rápida de la solicitud */}
             <div style={{display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:10, marginBottom:16}}>
               <div style={s.infoChip}>
                 <div style={s.infoChipLabel}>UNIDAD DE NEGOCIO</div>
@@ -310,7 +300,6 @@ export default function GestorInventario() {
               </div>
             </div>
 
-            {/* Resumen posiciones */}
             {selected.posiciones?.length > 1 && (
               <div style={s.resumenBar}>
                 <span style={{color:'#16a34a', fontWeight:600}}>
@@ -330,7 +319,6 @@ export default function GestorInventario() {
               </div>
             )}
 
-            {/* POSICIONES */}
             <div style={s.posicionesBox}>
               <div style={{fontSize:12, fontWeight:700, color:'#0f1d3a', marginBottom:12}}>
                 Posiciones solicitadas ({selected.posiciones?.length || 0})
@@ -439,7 +427,6 @@ export default function GestorInventario() {
               })}
             </div>
 
-            {/* Progreso */}
             {posAprobables > 0 && (
               <div style={{marginBottom:16, fontSize:12, color:'#6b7280', textAlign:'right'}}>
                 {posicionesAprobables().filter(p => formPosiciones[p.id]?.tipoMaterial && formPosiciones[p.id]?.grupoArticulos).length}
@@ -447,7 +434,6 @@ export default function GestorInventario() {
               </div>
             )}
 
-            {/* Botones */}
             <div style={{display:'flex', gap:10, justifyContent:'flex-end', flexWrap:'wrap'}}>
               <button style={s.btnCancel} onClick={() => setSelected(null)}>Cancelar</button>
               <button style={s.btnReject} onClick={handleRechazarTodo} disabled={saving}>✗ Rechazar todo</button>
