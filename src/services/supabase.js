@@ -279,9 +279,14 @@ export async function updatePosicion(id, datos) {
 }
 
 export async function actualizarPosicion(posicionId, datos) {
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('posiciones')
     .update(datos)
-    .eq('id', posicionId);
-  if (error) throw error;
+    .eq('id', posicionId)
+    .select();
+  if (error) {
+    console.error('Error actualizarPosicion:', error);
+    throw error;
+  }
+  return data;
 }
