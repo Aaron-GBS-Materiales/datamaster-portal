@@ -156,22 +156,18 @@ async function handleEnviarALider() {
   if (!todasAprobablesCompletas()) return;
   setSaving(true);
   try {
-    // 1. Marcar mis posiciones como Revisadas
     await Promise.all(
       posicionesAprobables().map(p =>
         actualizarPosicion(p.id, {
-          tipo_material:   formPosiciones[p.id].tipoMaterial,
-          grupo_articulos: formPosiciones[p.id].grupoArticulos,
-          estado:          'Aprobada',
-          estado_gestor:   'Revisada',
+          tipo_material:    formPosiciones[p.id].tipoMaterial,
+          grupo_articulos:  formPosiciones[p.id].grupoArticulos,
+          estado:           'Aprobada',
+          estado_gestor:    'Revisada',
+          asignado_gestor:  user.email, // ← guardar email del gestor por posición
         })
       )
     );
-
-    // 2. Avanzar solicitud al paso 3 siempre que haya al menos
-    //    una posición revisada — el líder verá solo sus posiciones
     await avanzarPaso(selected.id, 3, { asignado_a: user.email });
-
     setSelected(null);
     setFormPosiciones({});
     load();
