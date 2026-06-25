@@ -17,16 +17,17 @@ const CATEGORIAS = [
 
 export default function NuevaSolicitud({ onSuccess }) {
   const { user } = useAuth();
-  const [categoria, setCategoria] = useState('');
   const [posiciones, setPosiciones] = useState([
-    { id: 1, denominacion: '', unidad_medida: '', texto_pedido: '' }
+    { id: 1, denominacion: '', unidad_medida: '', texto_pedido: '', categoria: '' }
   ]);
   const [nextId, setNextId] = useState(2);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
   const handleAddPosicion = () => {
-    setPosiciones([...posiciones, { id: nextId, denominacion: '', unidad_medida: '', texto_pedido: '' }]);
+    setPosiciones([...posiciones, {
+      id: nextId, denominacion: '', unidad_medida: '', texto_pedido: '', categoria: ''
+    }]);
     setNextId(nextId + 1);
   };
 
@@ -42,11 +43,11 @@ export default function NuevaSolicitud({ onSuccess }) {
     e.preventDefault();
     setError('');
 
-    if (!categoria) {
-      setError('Selecciona una categoría de material'); return;
-    }
     if (posiciones.some(p => !p.denominacion || !p.unidad_medida)) {
-      setError('Completa todos los campos requeridos en cada posición'); return;
+      setError('Completa denominación y unidad de medida en cada posición'); return;
+    }
+    if (posiciones.some(p => !p.categoria)) {
+      setError('Selecciona una categoría en cada posición'); return;
     }
 
     setSubmitting(true);
@@ -56,12 +57,10 @@ export default function NuevaSolicitud({ onSuccess }) {
         email_solicitante:  user?.email,
         unidad_negocio:     user?.unidad_negocio,
         pais:               user?.pais || 'Perú',
-        categoria,
         posiciones,
       });
       onSuccess(ticketId);
-      setCategoria('');
-      setPosiciones([{ id: 1, denominacion: '', unidad_medida: '', texto_pedido: '' }]);
+      setPosiciones([{ id: 1, denominacion: '', unidad_medida: '', texto_pedido: '', categoria: '' }]);
       setNextId(2);
     } catch (err) {
       setError(err.message || 'Error al crear solicitud');
@@ -77,43 +76,27 @@ export default function NuevaSolicitud({ onSuccess }) {
       <div style={{background:'#fff', border:'1px solid #e2e5ef', borderRadius:12, padding:24}}>
         <div style={{background:'#eff4ff', border:'1px solid #bfdbfe', borderRadius:8, padding:12,
           fontSize:13, color:'#2563eb', marginBottom:24}}>
-          ℹ️ Puedes agregar múltiples materiales en una solicitud.
+          ℹ️ Puedes agregar múltiples materiales en una solicitud. Cada posición puede tener su propia categoría.
         </div>
 
         <form onSubmit={handleSubmit}>
-
-          {/* ── CATEGORÍA (campo único para toda la solicitud) ── */}
-          <div style={{marginBottom:24, padding:16, background:'#f5f6fa', borderRadius:10,
-            border:'1px solid #e2e5ef'}}>
-            <label style={{display:'block', fontSize:13, fontWeight:700, color:'#0f1d3a', marginBottom:8}}>
-              Categoría de Material <span style={{color:'#dc2626'}}>*</span>
-            </label>
-            <select
-              style={{width:'100%', padding:'10px 12px', border:'1.5px solid #e2e5ef',
-                borderRadius:8, fontSize:13, boxSizing:'border-box', background:'#fff',
-                outline:'none'}}
-              value={categoria}
-              onChange={e => setCategoria(e.target.value)}>
-              <option value="">Seleccionar categoría…</option>
-              {CATEGORIAS.map(c => <option key={c} value={c}>{c}</option>)}
-            </select>
-            {categoria && (
-              <div style={{marginTop:8, fontSize:11, color:'#6b7280'}}>
-                ✓ Categoría seleccionada: <strong style={{color:'#0f1d3a'}}>{categoria}</strong>
-              </div>
-            )}
-          </div>
-
-          {/* ── POSICIONES ── */}
           {posiciones.map((pos, idx) => (
-            <div key={pos.id} style={{paddingBottom:24}}>
+            <div key={pos.id}>
+              {/* Encabezado posición */}
               <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:16}}>
-                <h3 style={{fontSize:14, fontWeight:700, color:'#0f1d3a', margin:0}}>
-                  Posición {idx + 1}
-                </h3>
+                <div style={{display:'flex', alignItems:'center', gap:10}}>
+                  <span style={{background:'#0f1d3a', color:'#fff', borderRadius:'50%', width:24, height:24,
+                    display:'inline-flex', alignItems:'center', justifyContent:'center',
+                    fontSize:11, fontWeight:700}}>
+                    {idx + 1}
+                  </span>
+                  <h3 style={{fontSize:14, fontWeight:700, color:'#0f1d3a', margin:0}}>
+                    Posición {idx + 1}
+                  </h3>
+                </div>
                 {posiciones.length > 1 && (
                   <button type="button"
-                    style={{padding:'6px 12px', background:'#fef2f2', color:'#dc2626',
+                    style={{padding:'5px 12px', background:'#fef2f2', color:'#dc2626',
                       border:'1px solid #fecaca', borderRadius:6, fontSize:12, fontWeight:600, cursor:'pointer'}}
                     onClick={() => handleRemovePosicion(pos.id)}>
                     Eliminar
@@ -121,50 +104,69 @@ export default function NuevaSolicitud({ onSuccess }) {
                 )}
               </div>
 
-              <div style={{marginBottom:18}}>
-                <label style={{display:'block', fontSize:13, fontWeight:600, color:'#0f1d3a', marginBottom:8}}>
-                  Denominación <span style={{color:'#dc2626'}}>*</span>
-                </label>
-                <input type="text"
-                  style={{width:'100%', padding:'10px 12px', border:'1px solid #d1d5db',
-                    borderRadius:8, fontSize:13, boxSizing:'border-box', outline:'none'}}
-                  placeholder="TUBO ACERO"
-                  value={pos.denominacion}
-                  onChange={e => handleChangePosicion(pos.id, 'denominacion', e.target.value)}
-                />
-              </div>
+              <div style={{background:'#f9fafb', border:'1px solid #e2e5ef', borderRadius:10, padding:16, marginBottom:20}}>
 
-              <div style={{marginBottom:18}}>
-                <label style={{display:'block', fontSize:13, fontWeight:600, color:'#0f1d3a', marginBottom:8}}>
-                  Unidad de medida <span style={{color:'#dc2626'}}>*</span>
-                </label>
-                <select
-                  style={{width:'100%', padding:'10px 12px', border:'1px solid #d1d5db',
-                    borderRadius:8, fontSize:13, boxSizing:'border-box', outline:'none'}}
-                  value={pos.unidad_medida}
-                  onChange={e => handleChangePosicion(pos.id, 'unidad_medida', e.target.value)}>
-                  <option value="">Seleccionar...</option>
-                  {UNIDADES.map(u => <option key={u} value={u}>{u}</option>)}
-                </select>
-              </div>
+                {/* Categoría — por posición */}
+                <div style={{marginBottom:14}}>
+                  <label style={{display:'block', fontSize:12, fontWeight:700, color:'#0f1d3a', marginBottom:6}}>
+                    Categoría de Material <span style={{color:'#dc2626'}}>*</span>
+                  </label>
+                  <select
+                    style={{width:'100%', padding:'9px 12px', border: pos.categoria ? '1.5px solid #2563eb' : '1px solid #d1d5db',
+                      borderRadius:8, fontSize:13, boxSizing:'border-box', outline:'none',
+                      background: pos.categoria ? '#eff4ff' : '#fff',
+                      color: pos.categoria ? '#2563eb' : '#374151', fontWeight: pos.categoria ? 600 : 400}}
+                    value={pos.categoria}
+                    onChange={e => handleChangePosicion(pos.id, 'categoria', e.target.value)}>
+                    <option value="">Seleccionar categoría…</option>
+                    {CATEGORIAS.map(c => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                </div>
 
-              <div style={{marginBottom:18}}>
-                <label style={{display:'block', fontSize:13, fontWeight:600, color:'#0f1d3a', marginBottom:8}}>
-                  Texto de pedido
-                </label>
-                <textarea
-                  style={{width:'100%', padding:'10px 12px', border:'1px solid #d1d5db',
-                    borderRadius:8, fontSize:13, minHeight:80, boxSizing:'border-box',
-                    resize:'vertical', outline:'none'}}
-                  placeholder="Especificaciones..."
-                  value={pos.texto_pedido}
-                  onChange={e => handleChangePosicion(pos.id, 'texto_pedido', e.target.value)}
-                />
-              </div>
+                {/* Denominación */}
+                <div style={{marginBottom:14}}>
+                  <label style={{display:'block', fontSize:12, fontWeight:700, color:'#0f1d3a', marginBottom:6}}>
+                    Denominación <span style={{color:'#dc2626'}}>*</span>
+                  </label>
+                  <input type="text"
+                    style={{width:'100%', padding:'9px 12px', border:'1px solid #d1d5db',
+                      borderRadius:8, fontSize:13, boxSizing:'border-box', outline:'none'}}
+                    placeholder="TUBO ACERO"
+                    value={pos.denominacion}
+                    onChange={e => handleChangePosicion(pos.id, 'denominacion', e.target.value)}
+                  />
+                </div>
 
-              {idx < posiciones.length - 1 && (
-                <div style={{height:'1px', background:'#e2e5ef', margin:'8px 0 24px'}} />
-              )}
+                {/* Unidad de medida */}
+                <div style={{marginBottom:14}}>
+                  <label style={{display:'block', fontSize:12, fontWeight:700, color:'#0f1d3a', marginBottom:6}}>
+                    Unidad de medida <span style={{color:'#dc2626'}}>*</span>
+                  </label>
+                  <select
+                    style={{width:'100%', padding:'9px 12px', border:'1px solid #d1d5db',
+                      borderRadius:8, fontSize:13, boxSizing:'border-box', outline:'none'}}
+                    value={pos.unidad_medida}
+                    onChange={e => handleChangePosicion(pos.id, 'unidad_medida', e.target.value)}>
+                    <option value="">Seleccionar...</option>
+                    {UNIDADES.map(u => <option key={u} value={u}>{u}</option>)}
+                  </select>
+                </div>
+
+                {/* Texto de pedido */}
+                <div>
+                  <label style={{display:'block', fontSize:12, fontWeight:700, color:'#0f1d3a', marginBottom:6}}>
+                    Texto de pedido
+                  </label>
+                  <textarea
+                    style={{width:'100%', padding:'9px 12px', border:'1px solid #d1d5db',
+                      borderRadius:8, fontSize:13, minHeight:70, boxSizing:'border-box',
+                      resize:'vertical', outline:'none'}}
+                    placeholder="Especificaciones técnicas del material..."
+                    value={pos.texto_pedido}
+                    onChange={e => handleChangePosicion(pos.id, 'texto_pedido', e.target.value)}
+                  />
+                </div>
+              </div>
             </div>
           ))}
 
