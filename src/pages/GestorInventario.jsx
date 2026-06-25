@@ -56,18 +56,38 @@ export default function GestorInventario() {
     return () => clearInterval(interval);
   }, []);
 
-  async function load() {
-    setLoading(true);
-    try {
-      const paso2 = await getSolicitudesPorPaso(2);
-      const paso3 = await getSolicitudesPorPaso(3);
-      const paso4 = await getSolicitudesPorPaso(4);
-      const paso5 = await getSolicitudesPorPaso(5);
-      const data = [...paso2, ...paso3, ...paso4, ...paso5].filter(s => s.unidad_negocio === 'UNACEM PERU');
-      setSolicitudes(data);
-    } catch {}
-    setLoading(false);
-  }
+async function load() {
+  setLoading(true);
+  try {
+    const paso2 = await getSolicitudesPorPaso(2);
+    const paso3 = await getSolicitudesPorPaso(3);
+    const paso4 = await getSolicitudesPorPaso(4);
+    const paso5 = await getSolicitudesPorPaso(5);
+
+    let data = [...paso2, ...paso3, ...paso4, ...paso5]
+      .filter(s => s.unidad_negocio === 'UNACEM PERU');
+
+    // Filtrar por categorías del gestor logueado
+    const categoriaGestor = user?.categorias;
+    if (categoriaGestor && categoriaGestor.length > 0) {
+      // Cargar posiciones de cada solicitud y filtrar
+      // si al menos una posición coincide con las categorías del gestor
+      const dataFiltrada = await Promise.all(
+        data.map(async sol => {
+          const pos = await getPosicionesBySolicitud(sol.id);
+          const tieneMiCategoria = pos.some(p =>
+            categoriaGestor.includes(p.categoria)
+          );
+          return tieneMiCategoria ? sol : null;
+        })
+      );
+      data = dataFiltrada.filter(Boolean);
+    }
+
+    setSolicitudes(data);
+  } catch {}
+  setLoading(false);
+}
 
   async function handleRevisar(sol) {
     const pos = await getPosicionesBySolicitud(sol.id);
