@@ -3,8 +3,21 @@ import { createSolicitud } from '../services/supabase';
 import { useAuth } from '../context/AuthContext';
 import { UNIDADES } from '../constants/materiales';
 
+const CATEGORIAS = [
+  'BIENES INDIRECTOS',
+  'CAPEX',
+  'ENERGIA Y COMBUST.',
+  'ENVASE P/CEMENTO',
+  'MATERIAS PRIMAS',
+  'MRO ELECTRICO/NICO',
+  'MRO MECANICO',
+  'REFRACTARIO AFINES',
+  'SUMIN/CONSUMIBLE',
+];
+
 export default function NuevaSolicitud({ onSuccess }) {
   const { user } = useAuth();
+  const [categoria, setCategoria] = useState('');
   const [posiciones, setPosiciones] = useState([
     { id: 1, denominacion: '', unidad_medida: '', texto_pedido: '' }
   ]);
@@ -18,9 +31,7 @@ export default function NuevaSolicitud({ onSuccess }) {
   };
 
   const handleRemovePosicion = (id) => {
-    if (posiciones.length > 1) {
-      setPosiciones(posiciones.filter(p => p.id !== id));
-    }
+    if (posiciones.length > 1) setPosiciones(posiciones.filter(p => p.id !== id));
   };
 
   const handleChangePosicion = (id, field, value) => {
@@ -31,22 +42,25 @@ export default function NuevaSolicitud({ onSuccess }) {
     e.preventDefault();
     setError('');
 
+    if (!categoria) {
+      setError('Selecciona una categoría de material'); return;
+    }
     if (posiciones.some(p => !p.denominacion || !p.unidad_medida)) {
-      setError('Completa todos los campos requeridos en cada posicion');
-      return;
+      setError('Completa todos los campos requeridos en cada posición'); return;
     }
 
     setSubmitting(true);
     try {
       const ticketId = await createSolicitud({
         nombre_solicitante: user?.nombre,
-        email_solicitante: user?.email,
-        unidad_negocio: user?.unidad_negocio,
-        pais: user?.pais || 'Peru',
-        posiciones: posiciones,
+        email_solicitante:  user?.email,
+        unidad_negocio:     user?.unidad_negocio,
+        pais:               user?.pais || 'Perú',
+        categoria,
+        posiciones,
       });
-      
       onSuccess(ticketId);
+      setCategoria('');
       setPosiciones([{ id: 1, denominacion: '', unidad_medida: '', texto_pedido: '' }]);
       setNextId(2);
     } catch (err) {
@@ -56,56 +70,123 @@ export default function NuevaSolicitud({ onSuccess }) {
   };
 
   return (
-    <div style={{padding: 28}}>
-      <h2 style={{fontSize: 18, fontWeight: 800, color: '#0f1d3a', margin: 0}}>Nueva solicitud</h2>
-      <p style={{fontSize: 12, color: '#6b7280', marginTop: 3, marginBottom: 24}}>Creacion de codigo SAP</p>
+    <div style={{padding:28}}>
+      <h2 style={{fontSize:18, fontWeight:800, color:'#0f1d3a', margin:0}}>Nueva solicitud</h2>
+      <p style={{fontSize:12, color:'#6b7280', marginTop:3, marginBottom:24}}>Creación de código SAP</p>
 
-      <div style={{background: '#fff', border: '1px solid #e2e5ef', borderRadius: 12, padding: 24}}>
-        <div style={{background: '#eff4ff', border: '1px solid #bfdbfe', borderRadius: 8, padding: 12, fontSize: 13, color: '#2563eb', marginBottom: 24}}>
-          Info: Puedes agregar multiples materiales en una solicitud.
+      <div style={{background:'#fff', border:'1px solid #e2e5ef', borderRadius:12, padding:24}}>
+        <div style={{background:'#eff4ff', border:'1px solid #bfdbfe', borderRadius:8, padding:12,
+          fontSize:13, color:'#2563eb', marginBottom:24}}>
+          ℹ️ Puedes agregar múltiples materiales en una solicitud.
         </div>
 
         <form onSubmit={handleSubmit}>
+
+          {/* ── CATEGORÍA (campo único para toda la solicitud) ── */}
+          <div style={{marginBottom:24, padding:16, background:'#f5f6fa', borderRadius:10,
+            border:'1px solid #e2e5ef'}}>
+            <label style={{display:'block', fontSize:13, fontWeight:700, color:'#0f1d3a', marginBottom:8}}>
+              Categoría de Material <span style={{color:'#dc2626'}}>*</span>
+            </label>
+            <select
+              style={{width:'100%', padding:'10px 12px', border:'1.5px solid #e2e5ef',
+                borderRadius:8, fontSize:13, boxSizing:'border-box', background:'#fff',
+                outline:'none'}}
+              value={categoria}
+              onChange={e => setCategoria(e.target.value)}>
+              <option value="">Seleccionar categoría…</option>
+              {CATEGORIAS.map(c => <option key={c} value={c}>{c}</option>)}
+            </select>
+            {categoria && (
+              <div style={{marginTop:8, fontSize:11, color:'#6b7280'}}>
+                ✓ Categoría seleccionada: <strong style={{color:'#0f1d3a'}}>{categoria}</strong>
+              </div>
+            )}
+          </div>
+
+          {/* ── POSICIONES ── */}
           {posiciones.map((pos, idx) => (
-            <div key={pos.id} style={{paddingBottom: 24}}>
+            <div key={pos.id} style={{paddingBottom:24}}>
               <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:16}}>
-                <h3 style={{fontSize: 14, fontWeight: 700, color: '#0f1d3a', margin: 0}}>Posicion {idx + 1}</h3>
+                <h3 style={{fontSize:14, fontWeight:700, color:'#0f1d3a', margin:0}}>
+                  Posición {idx + 1}
+                </h3>
                 {posiciones.length > 1 && (
-                  <button type="button" style={{padding: '6px 12px', background: '#fef2f2', color: '#dc2626', border: '1px solid #fecaca', borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer'}} onClick={() => handleRemovePosicion(pos.id)}>
+                  <button type="button"
+                    style={{padding:'6px 12px', background:'#fef2f2', color:'#dc2626',
+                      border:'1px solid #fecaca', borderRadius:6, fontSize:12, fontWeight:600, cursor:'pointer'}}
+                    onClick={() => handleRemovePosicion(pos.id)}>
                     Eliminar
                   </button>
                 )}
               </div>
 
-              <div style={{marginBottom: 18}}>
-                <label style={{display:'block', fontSize: 13, fontWeight: 600, color: '#0f1d3a', marginBottom: 8}}>Denominacion *</label>
-                <input type="text" style={{width: '100%', padding: '10px 12px', border: '1px solid #d1d5db', borderRadius: 8, fontSize: 13, boxSizing: 'border-box'}} placeholder="TUBO ACERO" value={pos.denominacion} onChange={(e) => handleChangePosicion(pos.id, 'denominacion', e.target.value)} />
+              <div style={{marginBottom:18}}>
+                <label style={{display:'block', fontSize:13, fontWeight:600, color:'#0f1d3a', marginBottom:8}}>
+                  Denominación <span style={{color:'#dc2626'}}>*</span>
+                </label>
+                <input type="text"
+                  style={{width:'100%', padding:'10px 12px', border:'1px solid #d1d5db',
+                    borderRadius:8, fontSize:13, boxSizing:'border-box', outline:'none'}}
+                  placeholder="TUBO ACERO"
+                  value={pos.denominacion}
+                  onChange={e => handleChangePosicion(pos.id, 'denominacion', e.target.value)}
+                />
               </div>
 
-              <div style={{marginBottom: 18}}>
-                <label style={{display:'block', fontSize: 13, fontWeight: 600, color: '#0f1d3a', marginBottom: 8}}>Unidad de medida *</label>
-                <select style={{width: '100%', padding: '10px 12px', border: '1px solid #d1d5db', borderRadius: 8, fontSize: 13, boxSizing: 'border-box'}} value={pos.unidad_medida} onChange={(e) => handleChangePosicion(pos.id, 'unidad_medida', e.target.value)}>
+              <div style={{marginBottom:18}}>
+                <label style={{display:'block', fontSize:13, fontWeight:600, color:'#0f1d3a', marginBottom:8}}>
+                  Unidad de medida <span style={{color:'#dc2626'}}>*</span>
+                </label>
+                <select
+                  style={{width:'100%', padding:'10px 12px', border:'1px solid #d1d5db',
+                    borderRadius:8, fontSize:13, boxSizing:'border-box', outline:'none'}}
+                  value={pos.unidad_medida}
+                  onChange={e => handleChangePosicion(pos.id, 'unidad_medida', e.target.value)}>
                   <option value="">Seleccionar...</option>
                   {UNIDADES.map(u => <option key={u} value={u}>{u}</option>)}
                 </select>
               </div>
 
-              <div style={{marginBottom: 18}}>
-                <label style={{display:'block', fontSize: 13, fontWeight: 600, color: '#0f1d3a', marginBottom: 8}}>Texto de pedido *</label>
-                <textarea style={{width: '100%', padding: '10px 12px', border: '1px solid #d1d5db', borderRadius: 8, fontSize: 13, minHeight: 80, boxSizing: 'border-box'}} placeholder="Especificaciones..." value={pos.texto_pedido} onChange={(e) => handleChangePosicion(pos.id, 'texto_pedido', e.target.value)} />
+              <div style={{marginBottom:18}}>
+                <label style={{display:'block', fontSize:13, fontWeight:600, color:'#0f1d3a', marginBottom:8}}>
+                  Texto de pedido
+                </label>
+                <textarea
+                  style={{width:'100%', padding:'10px 12px', border:'1px solid #d1d5db',
+                    borderRadius:8, fontSize:13, minHeight:80, boxSizing:'border-box',
+                    resize:'vertical', outline:'none'}}
+                  placeholder="Especificaciones..."
+                  value={pos.texto_pedido}
+                  onChange={e => handleChangePosicion(pos.id, 'texto_pedido', e.target.value)}
+                />
               </div>
 
-              {idx < posiciones.length - 1 && <div style={{height: '1px', background: '#e2e5ef', margin: '24px 0'}} />}
+              {idx < posiciones.length - 1 && (
+                <div style={{height:'1px', background:'#e2e5ef', margin:'8px 0 24px'}} />
+              )}
             </div>
           ))}
 
-          {error && <div style={{background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, padding: 12, color: '#dc2626', fontSize: 13, marginBottom: 16}}>{error}</div>}
+          {error && (
+            <div style={{background:'#fef2f2', border:'1px solid #fecaca', borderRadius:8,
+              padding:12, color:'#dc2626', fontSize:13, marginBottom:16}}>
+              {error}
+            </div>
+          )}
 
-          <div style={{display:'flex', gap: 12, marginTop: 28}}>
-            <button type="button" style={{padding: '10px 16px', background: '#f0f2f8', color: '#2563eb', border: '1px solid #d1d5db', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer'}} onClick={handleAddPosicion}>
-              Agregar posicion
+          <div style={{display:'flex', gap:12, marginTop:8}}>
+            <button type="button"
+              style={{padding:'10px 16px', background:'#f0f2f8', color:'#2563eb',
+                border:'1px solid #d1d5db', borderRadius:8, fontSize:13, fontWeight:600, cursor:'pointer'}}
+              onClick={handleAddPosicion}>
+              + Agregar posición
             </button>
-            <button type="submit" style={{padding: '10px 24px', background: '#2563eb', color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer'}} disabled={submitting}>
+            <button type="submit"
+              style={{padding:'10px 24px', background:'#2563eb', color:'#fff',
+                border:'none', borderRadius:8, fontSize:13, fontWeight:700, cursor:'pointer',
+                opacity: submitting ? 0.7 : 1}}
+              disabled={submitting}>
               {submitting ? 'Enviando...' : 'Enviar solicitud'}
             </button>
           </div>
