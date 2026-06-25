@@ -153,10 +153,10 @@ async function handleAprobarTodo() {
   if (!hayAlgoAprobable()) return;
   setSaving(true);
   try {
-    // 1. Marcar estado_lider = 'Aprobada' solo en mis posiciones
+    // 1. Marcar mis posiciones como aprobadas por líder
     await Promise.all(
       posicionesAprobables().map(p =>
-        actualizarPosicion(p.id, { 
+        actualizarPosicion(p.id, {
           estado:       'Aprobada',
           estado_lider: 'Aprobada',
         })
@@ -167,7 +167,7 @@ async function handleAprobarTodo() {
     const todasListas = await todasPosicionesAprobadas(selected.id);
 
     if (todasListas) {
-      // Todas las categorías fueron aprobadas → avanzar al paso 4 (Base de Datos)
+      // Todos los líderes aprobaron → avanzar a Base de Datos
       await avanzarPaso(selected.id, 4, {
         aprobado_por_lider: true,
         estado: 'Aprobada',
