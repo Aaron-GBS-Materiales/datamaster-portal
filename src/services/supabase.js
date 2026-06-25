@@ -234,7 +234,10 @@ export async function avanzarPaso(id, paso, datos = {}) {
     .from('solicitudes')
     .update({ paso, ...datos, ...extra })
     .eq('id', id);
-  if (error) throw error;
+  if (error) {
+    console.error('Error avanzarPaso:', error);
+    throw error;
+  }
 }
 
 export async function rechazarSolicitud(id, motivo = '') {
