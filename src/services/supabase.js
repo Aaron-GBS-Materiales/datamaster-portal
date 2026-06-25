@@ -200,11 +200,16 @@ export async function atenderSolicitud(id, atendido_por, codigoMaterial) {
 export async function getSolicitudesPorPaso(paso) {
   const { data, error } = await supabase
     .from('solicitudes')
-    .select('*')
+    .select('*, posiciones(count)')
     .eq('paso', paso)
     .order('fecha_recepcion', { ascending: false });
   if (error) throw error;
-  return data || [];
+
+  // Normalizar: convertir posiciones:[{count:N}] → posiciones_count: N
+  return (data || []).map(sol => ({
+    ...sol,
+    posiciones_count: sol.posiciones?.[0]?.count ?? 0,
+  }));
 }
 
 export async function getSolicitudesPorRol(rol) {
