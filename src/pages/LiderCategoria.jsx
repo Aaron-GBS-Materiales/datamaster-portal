@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react';
 import { getSolicitudesPorPaso, avanzarPaso, rechazarSolicitud,
          getPosicionesBySolicitud, actualizarPosicion, getNombreUsuario } from '../services/supabase';
+import { EstadoBadge } from '../utils/estadoHelper';
 
 const FLAG = { Perú:'🇵🇪', Colombia:'🇨🇴', Chile:'🇨🇱', Ecuador:'🇪🇨', Bolivia:'🇧🇴' };
 
@@ -63,7 +64,6 @@ export default function LiderCategoria() {
       const todas = [...paso3, ...paso4, ...paso5];
       setSolicitudes(todas);
 
-      // Cargar nombres reales de gestores
       const emailsUnicos = [...new Set(todas.map(s => s.asignado_a).filter(Boolean))];
       const nombres = {};
       await Promise.all(emailsUnicos.map(async email => {
@@ -151,7 +151,6 @@ export default function LiderCategoria() {
     setSaving(false);
   }
 
-  // Helper: nombre del gestor a partir de su email
   function nombreGestor(email) {
     if (!email) return null;
     return nombresGestores[email] || email.split('@')[0];
@@ -193,26 +192,16 @@ export default function LiderCategoria() {
               <tbody>
                 {pendientes.map(sol => (
                   <tr key={sol.id}>
-
-                    {/* Ticket */}
                     <td style={{...s.td, fontFamily:'monospace', color:'#2563eb', fontWeight:600, whiteSpace:'nowrap'}}>
                       {sol.ticket_id}
                     </td>
-
-                    {/* Solicitante */}
                     <td style={s.td}>{sol.nombre_solicitante}</td>
-
-                    {/* Unidad de Negocio */}
                     <td style={s.td}>
                       <span style={{background:'#eff4ff', color:'#2563eb', padding:'2px 8px', borderRadius:10, fontWeight:600, fontSize:11}}>
                         {sol.unidad_negocio || '—'}
                       </span>
                     </td>
-
-                    {/* País */}
                     <td style={s.td}>{FLAG[sol.pais]||''} {sol.pais}</td>
-
-                    {/* Gestor Asignado — nombre real */}
                     <td style={s.td}>
                       {sol.asignado_a ? (
                         <span style={{display:'flex', alignItems:'center', gap:6}}>
@@ -229,21 +218,15 @@ export default function LiderCategoria() {
                         <span style={{color:'#9ca3af', fontSize:12}}>—</span>
                       )}
                     </td>
-
-                    {/* Posiciones */}
                     <td style={{...s.td, textAlign:'center'}}>
                       <span style={{background:'#f5f6fa', border:'1px solid #e2e5ef', borderRadius:8,
                         padding:'2px 10px', fontSize:12, fontWeight:700, color:'#374151'}}>
                         {sol.posiciones_count ?? '—'}
                       </span>
                     </td>
-
-                    {/* Fecha y Hora */}
                     <td style={{...s.td, fontSize:11, color:'#374151', whiteSpace:'nowrap'}}>
                       {formatFecha(sol.fecha_recepcion)}
                     </td>
-
-                    {/* Tiempo total desde creación */}
                     <td style={{...s.td, whiteSpace:'nowrap'}}>
                       <span style={{fontSize:11, fontWeight:700,
                         color: colorTiempo(sol.fecha_recepcion),
@@ -252,8 +235,6 @@ export default function LiderCategoria() {
                         ⏱ {tiempoTranscurrido(sol.fecha_recepcion)}
                       </span>
                     </td>
-
-                    {/* Tiempo sin Liberación — desde que llegó al Líder */}
                     <td style={{...s.td, whiteSpace:'nowrap'}}>
                       <span style={{fontSize:11, fontWeight:700,
                         color: colorTiempo(sol.fecha_asignado_lider || sol.fecha_recepcion),
@@ -262,20 +243,13 @@ export default function LiderCategoria() {
                         🔒 {tiempoTranscurrido(sol.fecha_asignado_lider || sol.fecha_recepcion)}
                       </span>
                     </td>
-
-                    {/* Estado */}
+                    {/* ── ESTADO con EstadoBadge ── */}
                     <td style={s.td}>
-                      <span style={{fontSize:11, fontWeight:600, padding:'3px 8px', borderRadius:12,
-                        background:'#fef9c3', color:'#854d0e'}}>
-                        Paso 3
-                      </span>
+                      <EstadoBadge paso={sol.paso} flujo={sol.flujo} />
                     </td>
-
-                    {/* Acción */}
                     <td style={s.td}>
                       <button style={s.btnRevisar} onClick={() => handleRevisar(sol)}>Revisar →</button>
                     </td>
-
                   </tr>
                 ))}
               </tbody>
@@ -324,12 +298,9 @@ export default function LiderCategoria() {
                         <span style={{color:'#9ca3af', fontSize:12}}>—</span>
                       )}
                     </td>
+                    {/* ── ESTADO con EstadoBadge ── */}
                     <td style={s.td}>
-                      <span style={{fontSize:11, fontWeight:600, padding:'3px 8px', borderRadius:12,
-                        background: sol.estado==='Rechazada'?'#fef2f2':'#dcfce7',
-                        color: sol.estado==='Rechazada'?'#dc2626':'#16a34a'}}>
-                        {sol.estado}
-                      </span>
+                      <EstadoBadge paso={sol.paso} flujo={sol.flujo} />
                     </td>
                     <td style={{...s.td, fontSize:11, color:'#6b7280', whiteSpace:'nowrap'}}>
                       {formatFecha(sol.fecha_recepcion)}
@@ -349,7 +320,6 @@ export default function LiderCategoria() {
             <h3 style={s.mTitle}>Revisar Solicitud</h3>
             <p style={s.mSub}>{selected.ticket_id} · {selected.nombre_solicitante}</p>
 
-            {/* Info rápida */}
             <div style={{display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:10, marginBottom:16}}>
               <div style={s.infoChip}>
                 <div style={s.infoChipLabel}>UNIDAD DE NEGOCIO</div>
@@ -368,7 +338,6 @@ export default function LiderCategoria() {
               </div>
             </div>
 
-            {/* Resumen posiciones */}
             {selected.posiciones?.length > 1 && (
               <div style={s.resumenBar}>
                 <span style={{color:'#16a34a', fontWeight:600}}>{posAprobables} aprobables</span>
@@ -382,7 +351,6 @@ export default function LiderCategoria() {
               </div>
             )}
 
-            {/* POSICIONES */}
             <div style={s.posicionesBox}>
               <div style={{fontSize:12, fontWeight:700, color:'#0f1d3a', marginBottom:12}}>
                 Posiciones de la solicitud ({selected.posiciones?.length || 0})
@@ -426,7 +394,6 @@ export default function LiderCategoria() {
                       </div>
                     )}
 
-                    {/* Clasificación del Gestor */}
                     <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:10,
                       paddingTop:10, borderTop:'1px dashed #e2e5ef', marginBottom: rechazada ? 0 : 10}}>
                       <div>
@@ -479,7 +446,6 @@ export default function LiderCategoria() {
               })}
             </div>
 
-            {/* Botones */}
             <div style={{display:'flex', gap:10, justifyContent:'flex-end', flexWrap:'wrap'}}>
               <button style={s.btnCancel} onClick={() => setSelected(null)}>Cancelar</button>
               <button style={s.btnReject} onClick={handleRechazarTodo} disabled={saving}>✗ Rechazar todo</button>
