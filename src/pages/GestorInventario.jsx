@@ -175,32 +175,51 @@ export default function GestorInventario() {
     setSaving(false);
   }
 
-  async function handleEnviarALider() {
-    if (!todasAprobablesCompletas()) return;
-    setSaving(true);
-    try {
-      // Guardar tipo, grupo y marcar revisada con email del gestor
-      await Promise.all(
-        posicionesAprobables().map(p =>
-          actualizarPosicion(p.id, {
-            tipo_material:   formPosiciones[p.id].tipoMaterial,
-            grupo_articulos: formPosiciones[p.id].grupoArticulos,
-            estado:          'Aprobada',
-            estado_gestor:   'Revisada',
-            asignado_gestor: user.email,
-          })
-        )
-      );
+async function handleEnviarALider() {
+  if (!todasAprobablesCompletas()) return;
+  setSaving(true);
+  try {
+    // 1. Marcar mis posiciones como revisadas
+    await Promise.all(
+      posicionesAprobables().map(p =>
+        actualizarPosicion(p.id, {
+          tipo_material:   formPosiciones[p.id].tipoMaterial,
+          grupo_articulos: formPosiciones[p.id].grupoArticulos,
+          estado:          'Aprobada',
+          estado_gestor:   'Revisada',
+          asignado_gestor: user.email,
+        })
+      )
+    );
 
-      // Avanzar al paso 3 siempre — el líder filtra por sus categorías
+    // 2. Verificar si TODAS las posiciones de la solicitud ya fueron revisadas
+    //    por su gestor correspondiente
+    const todasPos = await getPosicionesBySolicitud(selected.id);
+    const posActivas = todasPos.filter(p => p.estado !== 'Rechazada');
+    const todasRevisadas = posActivas.every(p =>
+      p.estado_gestor === 'Revisada' || p.id === posicionesAprobables().find(pa => pa.id === p.id)?.id
+    );
+
+    // Recalcular con los datos actualizados
+    const posActualizadas = posActivas.map(p => {
+      const fueRevisadaAhora = posicionesAprobables().some(pa => pa.id === p.id);
+      return fueRevisadaAhora ? { ...p, estado_gestor: 'Revisada' } : p;
+    });
+    const todasRevisadasFinal = posActualizadas.every(p => p.estado_gestor === 'Revisada');
+
+    if (todasRevisadasFinal) {
+      // Todas las categorías revisadas → avanzar al paso 3
       await avanzarPaso(selected.id, 3, { asignado_a: user.email });
+    }
+    // Si no todas están revisadas, la solicitud se queda en paso 2
+    // hasta que el otro gestor también revise sus posiciones
 
-      setSelected(null);
-      setFormPosiciones({});
-      load();
-    } catch {}
-    setSaving(false);
-  }
+    setSelected(null);
+    setFormPosiciones({});
+    load();
+  } catch {}
+  setSaving(false);
+}
 
   async function handleRechazarTodo() {
     setSaving(true);
