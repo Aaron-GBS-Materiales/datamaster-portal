@@ -1,17 +1,13 @@
 // pages/Dashboard.jsx
 import { useState, useEffect } from 'react';
-import { getSolicitudesPorPaso, getSolicitudById, getPosicionesBySolicitud } from '../services/supabase';
+import { getSolicitudesPorPaso, getPosicionesBySolicitud } from '../services/supabase';
 import { useAuth } from '../context/AuthContext';
-import { EstadoBadge } from '../utils/estadoHelper';
 
-const FLAG = { Perú:'🇵🇪', Colombia:'🇨🇴', Chile:'🇨🇱', Ecuador:'🇪🇨', Bolivia:'🇧🇴' };
-
-export default function Dashboard({ soloMias }) {
+export default function Dashboard() {
   const { user } = useAuth();
   const [solicitudes, setSolicitudes] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [selected, setSelected] = useState(null);
-  const [detalle, setDetalle] = useState(null);
+
   const isAdmin  = user?.rol === 'ADMINISTRADOR' || user?.rol === 'DATA MASTER';
   const isGestor = user?.rol === 'GESTOR DE INVENTARIO';
   const isLider  = user?.rol === 'LIDER DE CATEGORÍA';
@@ -21,269 +17,269 @@ export default function Dashboard({ soloMias }) {
   async function load() {
     setLoading(true);
     try {
-      let data = [];
-
-      if (isGestor) {
-        const paso2 = await getSolicitudesPorPaso(2);
-        const paso3 = await getSolicitudesPorPaso(3);
-        const paso4 = await getSolicitudesPorPaso(4);
-        const paso5 = await getSolicitudesPorPaso(5);
-        data = [...paso2, ...paso3, ...paso4, ...paso5].filter(s => s.unidad_negocio === 'UNACEM PERU');
-      } else if (isLider) {
-        const paso3 = await getSolicitudesPorPaso(3);
-        const paso4 = await getSolicitudesPorPaso(4);
-        const paso5 = await getSolicitudesPorPaso(5);
-        data = [...paso3, ...paso4, ...paso5];
-      } else if (isAdmin) {
-        data = await getSolicitudesPorPaso(5);
-      } else {
-        const paso1 = await getSolicitudesPorPaso(1);
-        const paso2 = await getSolicitudesPorPaso(2);
-        const paso3 = await getSolicitudesPorPaso(3);
-        const paso4 = await getSolicitudesPorPaso(4);
-        const paso5 = await getSolicitudesPorPaso(5);
-        data = [...paso1, ...paso2, ...paso3, ...paso4, ...paso5]
-          .filter(s => s.email_solicitante === user?.email);
-      }
-
-      const dataConPosiciones = await Promise.all(data.map(async sol => {
-        const pos = await getPosicionesBySolicitud(sol.id);
-        return {...sol, posiciones: pos};
-      }));
-
-      setSolicitudes(dataConPosiciones);
+      const paso1 = await getSolicitudesPorPaso(1);
+      const paso2 = await getSolicitudesPorPaso(2);
+      const paso3 = await getSolicitudesPorPaso(3);
+      const paso4 = await getSolicitudesPorPaso(4);
+      const paso5 = await getSolicitudesPorPaso(5);
+      setSolicitudes([...paso1, ...paso2, ...paso3, ...paso4, ...paso5]);
     } catch {}
     setLoading(false);
   }
 
-  async function handleVerDetalle(id) {
-    try {
-      const det = await getSolicitudById(id);
-      const pos = await getPosicionesBySolicitud(id);
-      setDetalle({...det, posiciones: pos});
-      setSelected(id);
-    } catch {}
-  }
+  if (loading) return (
+    <div style={{padding:48, textAlign:'center', color:'#9ca3af'}}>Cargando dashboard…</div>
+  );
 
-  const pendientes  = solicitudes.filter(s => s.paso < 5);
-  const completadas = solicitudes.filter(s => s.paso === 5);
+  // ── Métricas generales ──
+  const total      = solicitudes.length;
+  const enProceso  = solicitudes.filter(s => s.paso < 5 && s.estado !== 'Rechazada').length;
+  const atendidas  = solicitudes.filter(s => s.paso === 5).length;
+  const rechazadas = solicitudes.filter(s => s.estado === 'Rechazada').length;
+  const tasaExito  = total > 0 ? Math.round((atendidas / total) * 100) : 0;
 
-  const getTitle = () => {
-    if (isGestor) return 'Mi Historial - Gestor de Inventario';
-    if (isLider)  return 'Mi Historial - Líder de Categoría';
-    return 'Dashboard';
-  };
+  // ── Por paso ──
+  const porPaso = [
+    { label: 'Revisión\nGestor',   paso: 2, count: solicitudes.filter(s => s.paso === 2).length, color: '#f59e0b', bg: '#fef9c3' },
+    { label: 'Revisión\nLíder',    paso: 3, count: solicitudes.filter(s => s.paso === 3).length, color: '#3b82f6', bg: '#dbeafe' },
+    { label: 'Creación\nPendiente',paso: 4, count: solicitudes.filter(s => s.paso === 4).length, color: '#8b5cf6', bg: '#ede9fe' },
+    { label: 'Atendidas',          paso: 5, count: solicitudes.filter(s => s.paso === 5).length, color: '#16a34a', bg: '#dcfce7' },
+    { label: 'Rechazadas',         paso: 0, count: rechazadas,                                    color: '#dc2626', bg: '#fef2f2' },
+  ];
+  const maxPaso = Math.max(...porPaso.map(p => p.count), 1);
 
-  const getSubtitle = () => {
-    if (isGestor) return 'Solicitudes que he revisado y procesado';
-    if (isLider)  return 'Solicitudes que he aprobado o rechazado';
-    return 'Solicitudes completadas';
-  };
+  // ── Por país ──
+  const paises = {};
+  solicitudes.forEach(s => { paises[s.pais] = (paises[s.pais] || 0) + 1; });
+  const porPais = Object.entries(paises).sort((a,b) => b[1]-a[1]);
+  const maxPais = Math.max(...porPais.map(p => p[1]), 1);
+  const flagMap = { Perú:'🇵🇪', Colombia:'🇨🇴', Chile:'🇨🇱', Ecuador:'🇪🇨', Bolivia:'🇧🇴' };
+
+  // ── Por unidad de negocio ──
+  const unidades = {};
+  solicitudes.forEach(s => {
+    if (s.unidad_negocio) unidades[s.unidad_negocio] = (unidades[s.unidad_negocio] || 0) + 1;
+  });
+  const porUnidad = Object.entries(unidades).sort((a,b) => b[1]-a[1]).slice(0, 6);
+
+  // ── Tendencia últimos 7 días ──
+  const hoy = new Date();
+  const dias7 = Array.from({length: 7}, (_, i) => {
+    const d = new Date(hoy);
+    d.setDate(hoy.getDate() - (6 - i));
+    return {
+      label: d.toLocaleDateString('es-PE', { weekday:'short', day:'2-digit' }),
+      fecha: d.toISOString().split('T')[0],
+      count: 0,
+    };
+  });
+  solicitudes.forEach(s => {
+    const fecha = s.fecha_recepcion?.split('T')[0];
+    const dia = dias7.find(d => d.fecha === fecha);
+    if (dia) dia.count++;
+  });
+  const maxDia = Math.max(...dias7.map(d => d.count), 1);
+
+  // ── Tiempo promedio de atención ──
+  const atendidas5 = solicitudes.filter(s => s.paso === 5 && s.fecha_respuesta && s.fecha_recepcion);
+  const promedioHoras = atendidas5.length > 0
+    ? Math.round(atendidas5.reduce((acc, s) => {
+        return acc + (new Date(s.fecha_respuesta) - new Date(s.fecha_recepcion)) / 3600000;
+      }, 0) / atendidas5.length)
+    : 0;
+
+  const colores = ['#2563eb','#16a34a','#f59e0b','#8b5cf6','#ec4899','#06b6d4'];
 
   return (
-    <div style={s.wrap}>
+    <div style={{padding:28}}>
 
-      {/* KPIs */}
-      <div style={s.kpiGrid}>
-        <div style={s.kpiCard}>
-          <div style={s.kpiLabel}>En proceso</div>
-          <div style={{...s.kpiVal, color:'#f59e0b'}}>{pendientes.length}</div>
+      {/* ── KPIs principales ── */}
+      <div style={{display:'grid', gridTemplateColumns:'repeat(5,1fr)', gap:14, marginBottom:24}}>
+        {[
+          { label:'Total solicitudes',  val: total,      color:'#2563eb', icon:'📋' },
+          { label:'En proceso',         val: enProceso,  color:'#f59e0b', icon:'⏳' },
+          { label:'Atendidas',          val: atendidas,  color:'#16a34a', icon:'✅' },
+          { label:'Rechazadas',         val: rechazadas, color:'#dc2626', icon:'❌' },
+          { label:'Tasa de éxito',      val: tasaExito+'%', color:'#8b5cf6', icon:'📈' },
+        ].map((k,i) => (
+          <div key={i} style={{background:'#fff', border:'1px solid #e2e5ef', borderRadius:12, padding:'18px 16px'}}>
+            <div style={{display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:10}}>
+              <div style={{fontSize:11, fontWeight:600, color:'#6b7280', textTransform:'uppercase', letterSpacing:'.6px'}}>
+                {k.label}
+              </div>
+              <span style={{fontSize:18}}>{k.icon}</span>
+            </div>
+            <div style={{fontSize:28, fontWeight:800, color: k.color, letterSpacing:'-1px'}}>
+              {k.val}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* ── Fila 1: Funnel por paso + Tendencia ── */}
+      <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:16, marginBottom:16}}>
+
+        {/* Funnel por paso */}
+        <div style={{background:'#fff', border:'1px solid #e2e5ef', borderRadius:12, padding:24}}>
+          <div style={{fontSize:15, fontWeight:700, color:'#0f1d3a', marginBottom:4}}>
+            Solicitudes por etapa
+          </div>
+          <div style={{fontSize:12, color:'#6b7280', marginBottom:20}}>Estado actual del flujo</div>
+          {porPaso.map((p, i) => (
+            <div key={i} style={{marginBottom:14}}>
+              <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:5}}>
+                <span style={{fontSize:12, fontWeight:600, color:'#374151', whiteSpace:'pre-line'}}>
+                  {p.label}
+                </span>
+                <span style={{fontSize:13, fontWeight:700, color: p.color}}>{p.count}</span>
+              </div>
+              <div style={{height:10, background:'#f5f6fa', borderRadius:6, overflow:'hidden'}}>
+                <div style={{
+                  height:'100%', borderRadius:6,
+                  width: `${Math.round((p.count / maxPaso) * 100)}%`,
+                  background: p.color,
+                  transition:'width .5s ease',
+                  minWidth: p.count > 0 ? 8 : 0,
+                }} />
+              </div>
+            </div>
+          ))}
         </div>
-        <div style={s.kpiCard}>
-          <div style={s.kpiLabel}>Completadas</div>
-          <div style={{...s.kpiVal, color:'#16a34a'}}>{completadas.length}</div>
-        </div>
-        <div style={s.kpiCard}>
-          <div style={s.kpiLabel}>Total</div>
-          <div style={{...s.kpiVal, color:'#2563eb'}}>{solicitudes.length}</div>
+
+        {/* Tendencia últimos 7 días */}
+        <div style={{background:'#fff', border:'1px solid #e2e5ef', borderRadius:12, padding:24}}>
+          <div style={{fontSize:15, fontWeight:700, color:'#0f1d3a', marginBottom:4}}>
+            Solicitudes últimos 7 días
+          </div>
+          <div style={{fontSize:12, color:'#6b7280', marginBottom:20}}>Nuevas solicitudes por día</div>
+          <div style={{display:'flex', alignItems:'flex-end', gap:8, height:120}}>
+            {dias7.map((d, i) => (
+              <div key={i} style={{flex:1, display:'flex', flexDirection:'column', alignItems:'center', gap:4}}>
+                <div style={{fontSize:10, fontWeight:700, color:'#2563eb'}}>{d.count > 0 ? d.count : ''}</div>
+                <div style={{
+                  width:'100%', borderRadius:'4px 4px 0 0',
+                  height: `${Math.round((d.count / maxDia) * 90)}px`,
+                  minHeight: d.count > 0 ? 8 : 2,
+                  background: d.count > 0 ? '#2563eb' : '#e2e5ef',
+                  transition:'height .5s ease',
+                }} />
+                <div style={{fontSize:9, color:'#9ca3af', textAlign:'center', lineHeight:1.2}}>
+                  {d.label}
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
 
-      {/* TABLA */}
-      <div style={s.card}>
-        <div style={s.header}>
-          <div>
-            <h2 style={s.h2}>{getTitle()}</h2>
-            <p style={s.sub}>{getSubtitle()}</p>
-          </div>
+      {/* ── Fila 2: Por país + Por unidad + Tiempo promedio ── */}
+      <div style={{display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:16}}>
+
+        {/* Por país */}
+        <div style={{background:'#fff', border:'1px solid #e2e5ef', borderRadius:12, padding:24}}>
+          <div style={{fontSize:15, fontWeight:700, color:'#0f1d3a', marginBottom:4}}>Por país</div>
+          <div style={{fontSize:12, color:'#6b7280', marginBottom:20}}>Distribución geográfica</div>
+          {porPais.length === 0 ? (
+            <div style={{color:'#9ca3af', fontSize:13}}>Sin datos</div>
+          ) : porPais.map(([pais, count], i) => (
+            <div key={i} style={{marginBottom:12}}>
+              <div style={{display:'flex', justifyContent:'space-between', marginBottom:4}}>
+                <span style={{fontSize:12, color:'#374151'}}>
+                  {flagMap[pais]||'🌎'} {pais}
+                </span>
+                <span style={{fontSize:12, fontWeight:700, color: colores[i % colores.length]}}>
+                  {count}
+                </span>
+              </div>
+              <div style={{height:8, background:'#f5f6fa', borderRadius:4, overflow:'hidden'}}>
+                <div style={{
+                  height:'100%', borderRadius:4,
+                  width:`${Math.round((count/maxPais)*100)}%`,
+                  background: colores[i % colores.length],
+                }} />
+              </div>
+            </div>
+          ))}
         </div>
 
-        {loading ? (
-          <div style={s.loading}>Cargando…</div>
-        ) : solicitudes.length === 0 ? (
-          <div style={s.empty}>No hay solicitudes</div>
-        ) : (
-          <div style={{overflowX:'auto'}}>
-            <table style={s.table}>
-              <thead>
-                <tr>
-                  {['Ticket','Solicitante','País','Unidad de Negocio','Posiciones','Estado','Acción'].map(h=>
-                    <th key={h} style={s.th}>{h}</th>
-                  )}
-                </tr>
-              </thead>
-              <tbody>
-                {solicitudes.map(sol => (
-                  <tr key={sol.id}>
-                    {/* Ticket */}
-                    <td style={{...s.td, fontFamily:'monospace', color:'#2563eb', fontWeight:600}}>
-                      {sol.ticket_id}
-                    </td>
-                    {/* Solicitante */}
-                    <td style={s.td}>{sol.nombre_solicitante}</td>
-                    {/* País */}
-                    <td style={s.td}>{FLAG[sol.pais]||''} {sol.pais}</td>
-                    {/* Unidad de Negocio */}
-                    <td style={s.td}>
-                      <span style={{fontSize:11, fontWeight:600, padding:'2px 8px', borderRadius:10,
-                        background:'#eff4ff', color:'#2563eb'}}>
-                        {sol.unidad_negocio || '—'}
-                      </span>
-                    </td>
-                    {/* Posiciones */}
-                    <td style={{...s.td, textAlign:'center'}}>
-                      <span style={{background:'#f5f6fa', border:'1px solid #e2e5ef', borderRadius:8,
-                        padding:'2px 10px', fontSize:12, fontWeight:700, color:'#374151'}}>
-                        {sol.posiciones_count ?? sol.posiciones?.length ?? '—'}
-                      </span>
-                    </td>
-                    {/* Estado */}
-                    <td style={s.td}>
-                      <EstadoBadge paso={sol.paso} flujo={sol.flujo} />
-                    </td>
-                    {/* Acción */}
-                    <td style={s.td}>
-                      <button style={s.btnVer} onClick={() => handleVerDetalle(sol.id)}>
-                        Ver →
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+        {/* Por unidad de negocio */}
+        <div style={{background:'#fff', border:'1px solid #e2e5ef', borderRadius:12, padding:24}}>
+          <div style={{fontSize:15, fontWeight:700, color:'#0f1d3a', marginBottom:4}}>Por unidad</div>
+          <div style={{fontSize:12, color:'#6b7280', marginBottom:20}}>Top unidades de negocio</div>
+          {porUnidad.length === 0 ? (
+            <div style={{color:'#9ca3af', fontSize:13}}>Sin datos</div>
+          ) : porUnidad.map(([unidad, count], i) => {
+            const maxU = Math.max(...porUnidad.map(p => p[1]), 1);
+            return (
+              <div key={i} style={{marginBottom:12}}>
+                <div style={{display:'flex', justifyContent:'space-between', marginBottom:4}}>
+                  <span style={{fontSize:11, color:'#374151', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', maxWidth:'70%'}}>
+                    {unidad}
+                  </span>
+                  <span style={{fontSize:12, fontWeight:700, color: colores[i % colores.length], flexShrink:0}}>
+                    {count}
+                  </span>
+                </div>
+                <div style={{height:8, background:'#f5f6fa', borderRadius:4, overflow:'hidden'}}>
+                  <div style={{
+                    height:'100%', borderRadius:4,
+                    width:`${Math.round((count/maxU)*100)}%`,
+                    background: colores[i % colores.length],
+                  }} />
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Tiempo promedio + Métricas de eficiencia */}
+        <div style={{background:'#fff', border:'1px solid #e2e5ef', borderRadius:12, padding:24}}>
+          <div style={{fontSize:15, fontWeight:700, color:'#0f1d3a', marginBottom:4}}>Eficiencia</div>
+          <div style={{fontSize:12, color:'#6b7280', marginBottom:20}}>Métricas de rendimiento</div>
+
+          {/* Tiempo promedio */}
+          <div style={{background:'#eff4ff', borderRadius:10, padding:'14px 16px', marginBottom:14, textAlign:'center'}}>
+            <div style={{fontSize:11, fontWeight:600, color:'#6b7280', textTransform:'uppercase', letterSpacing:'.5px', marginBottom:6}}>
+              Tiempo promedio de atención
+            </div>
+            <div style={{fontSize:28, fontWeight:800, color:'#2563eb'}}>
+              {promedioHoras < 24
+                ? `${promedioHoras}h`
+                : `${Math.floor(promedioHoras/24)}d ${promedioHoras%24}h`}
+            </div>
+            <div style={{fontSize:11, color:'#6b7280', marginTop:4}}>desde creación hasta atención</div>
           </div>
-        )}
+
+          {/* Gauge tasa de éxito */}
+          <div style={{background:'#f0fdf4', borderRadius:10, padding:'14px 16px', marginBottom:14, textAlign:'center'}}>
+            <div style={{fontSize:11, fontWeight:600, color:'#6b7280', textTransform:'uppercase', letterSpacing:'.5px', marginBottom:6}}>
+              Tasa de resolución
+            </div>
+            <div style={{fontSize:28, fontWeight:800, color:'#16a34a'}}>{tasaExito}%</div>
+            <div style={{height:8, background:'#dcfce7', borderRadius:4, marginTop:8, overflow:'hidden'}}>
+              <div style={{height:'100%', borderRadius:4, width:`${tasaExito}%`, background:'#16a34a'}} />
+            </div>
+          </div>
+
+          {/* Rechazadas */}
+          <div style={{background:'#fef2f2', borderRadius:10, padding:'14px 16px', textAlign:'center'}}>
+            <div style={{fontSize:11, fontWeight:600, color:'#6b7280', textTransform:'uppercase', letterSpacing:'.5px', marginBottom:6}}>
+              Tasa de rechazo
+            </div>
+            <div style={{fontSize:28, fontWeight:800, color:'#dc2626'}}>
+              {total > 0 ? Math.round((rechazadas/total)*100) : 0}%
+            </div>
+            <div style={{height:8, background:'#fecaca', borderRadius:4, marginTop:8, overflow:'hidden'}}>
+              <div style={{
+                height:'100%', borderRadius:4,
+                width:`${total > 0 ? Math.round((rechazadas/total)*100) : 0}%`,
+                background:'#dc2626'
+              }} />
+            </div>
+          </div>
+        </div>
       </div>
 
-      {/* MODAL DETALLE */}
-      {selected && detalle && (
-        <div style={s.modalBg} onClick={() => setSelected(null)}>
-          <div style={s.modal} onClick={e => e.stopPropagation()}>
-            <h3 style={s.mTitle}>Detalle de Solicitud</h3>
-            <p style={s.mSub}>{detalle.ticket_id} · {detalle.nombre_solicitante}</p>
-
-            {/* Info general */}
-            <div style={s.seccion}>
-              <div style={s.seccionTitle}>Información General</div>
-              <div style={s.grid2}>
-                <div>
-                  <div style={s.label}>País</div>
-                  <div style={s.valor}>{FLAG[detalle.pais]||''} {detalle.pais}</div>
-                </div>
-                <div>
-                  <div style={s.label}>Unidad de Negocio</div>
-                  <div style={s.valor}>{detalle.unidad_negocio || '—'}</div>
-                </div>
-              </div>
-              <div style={{marginTop:12}}>
-                <div style={s.label}>Estado actual</div>
-                <div style={{marginTop:4}}>
-                  <EstadoBadge paso={detalle.paso} flujo={detalle.flujo} />
-                </div>
-              </div>
-            </div>
-
-            {/* Posiciones */}
-            <div style={s.seccion}>
-              <div style={s.seccionTitle}>Posiciones ({detalle.posiciones?.length || 0})</div>
-              {detalle.posiciones && detalle.posiciones.length > 0 ? (
-                detalle.posiciones.map((pos, idx) => (
-                  <div key={pos.id} style={{marginBottom:16, paddingBottom:16, borderBottom:'1px solid #e2e5ef'}}>
-                    <div style={{fontSize:12, fontWeight:600, color:'#9ca3af', marginBottom:8}}>
-                      Posición {idx + 1}
-                    </div>
-                    <div style={s.grid2}>
-                      <div>
-                        <div style={s.label}>Denominación</div>
-                        <div style={s.valor}>{pos.denominacion}</div>
-                      </div>
-                      <div>
-                        <div style={s.label}>Unidad de Medida</div>
-                        <div style={s.valor}>{pos.unidad_medida}</div>
-                      </div>
-                    </div>
-                    {(pos.tipo_material || pos.grupo_articulos) && (
-                      <div style={{...s.grid2, marginTop:10}}>
-                        <div>
-                          <div style={s.label}>Tipo de Material</div>
-                          <div style={s.valor}>{pos.tipo_material || '—'}</div>
-                        </div>
-                        <div>
-                          <div style={s.label}>Grupo de Artículos</div>
-                          <div style={s.valor}>{pos.grupo_articulos || '—'}</div>
-                        </div>
-                      </div>
-                    )}
-                    {pos.texto_pedido && (
-                      <div style={{marginTop:10}}>
-                        <div style={s.label}>Texto de Pedido</div>
-                        <div style={{...s.valor, whiteSpace:'pre-wrap', maxHeight:100, overflow:'auto'}}>
-                          {pos.texto_pedido}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                ))
-              ) : (
-                <div style={{color:'#9ca3af', fontSize:13}}>Sin posiciones</div>
-              )}
-            </div>
-
-            {/* Código SAP si existe */}
-            {detalle.cantidad_codigos && (
-              <div style={s.seccion}>
-                <div style={s.seccionTitle}>Código SAP Asignado</div>
-                <div style={{fontFamily:'monospace', fontSize:18, fontWeight:800, color:'#16a34a',
-                  background:'#f0fdf4', padding:'12px 16px', borderRadius:8, display:'inline-block'}}>
-                  {detalle.cantidad_codigos}
-                </div>
-              </div>
-            )}
-
-            <div style={{display:'flex', justifyContent:'flex-end', marginTop:8}}>
-              <button style={s.btnCerrar} onClick={() => setSelected(null)}>Cerrar</button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
-
-const s = {
-  wrap:        { padding:28 },
-  kpiGrid:     { display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:16, marginBottom:24 },
-  kpiCard:     { background:'#fff', border:'1px solid #e2e5ef', borderRadius:12, padding:20 },
-  kpiLabel:    { fontSize:11, fontWeight:600, color:'#6b7280', textTransform:'uppercase', letterSpacing:'.7px', marginBottom:8 },
-  kpiVal:      { fontSize:32, fontWeight:800, letterSpacing:'-1px' },
-  card:        { background:'#fff', border:'1px solid #e2e5ef', borderRadius:12, overflow:'hidden' },
-  header:      { padding:'20px 24px', borderBottom:'1px solid #e2e5ef' },
-  h2:          { fontSize:18, fontWeight:800, color:'#0f1d3a', margin:0 },
-  sub:         { fontSize:12, color:'#6b7280', marginTop:3 },
-  loading:     { padding:48, textAlign:'center', color:'#9ca3af' },
-  empty:       { padding:48, textAlign:'center', color:'#9ca3af' },
-  table:       { width:'100%', borderCollapse:'collapse' },
-  th:          { padding:'10px 14px', background:'#f5f6fa', fontSize:11, fontWeight:600, color:'#6b7280', textTransform:'uppercase', letterSpacing:'.6px', textAlign:'left', borderBottom:'1px solid #e2e5ef', whiteSpace:'nowrap' },
-  td:          { padding:'11px 14px', fontSize:13, color:'#374151', borderBottom:'1px solid #f0f2f8', verticalAlign:'middle' },
-  btnVer:      { padding:'5px 12px', background:'#eff4ff', color:'#2563eb', border:'1px solid #bfdbfe', borderRadius:7, fontSize:12, fontWeight:600, cursor:'pointer' },
-  modalBg:     { position:'fixed', inset:0, background:'rgba(0,0,0,.45)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:200, padding:24 },
-  modal:       { background:'#fff', borderRadius:16, padding:32, maxWidth:600, width:'100%', boxShadow:'0 24px 64px rgba(0,0,0,.2)', maxHeight:'90vh', overflow:'auto' },
-  mTitle:      { fontSize:18, fontWeight:800, color:'#0f1d3a', marginBottom:4 },
-  mSub:        { fontSize:13, color:'#6b7280', marginBottom:20 },
-  seccion:     { marginBottom:24, paddingBottom:24, borderBottom:'1px solid #e2e5ef' },
-  seccionTitle:{ fontSize:13, fontWeight:700, color:'#0f1d3a', marginBottom:12 },
-  grid2:       { display:'grid', gridTemplateColumns:'1fr 1fr', gap:16 },
-  label:       { fontSize:11, fontWeight:600, color:'#9ca3af', textTransform:'uppercase', letterSpacing:'.5px', marginBottom:5 },
-  valor:       { fontSize:13, color:'#111827' },
-  btnCerrar:   { padding:'10px 24px', background:'#2563eb', color:'#fff', border:'none', borderRadius:8, fontSize:14, fontWeight:700, cursor:'pointer' },
-};
