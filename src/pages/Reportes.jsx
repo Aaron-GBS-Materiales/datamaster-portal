@@ -112,7 +112,7 @@ export default function Reportes() {
               denominacion:     pos.denominacion || '—',
               texto_pedido:     pos.texto_pedido || '—',
               fecha_solicitud:  idx === 0 ? sol.fecha_recepcion : null,
-              fecha_revision:   pos.updated_at || null,
+              fecha_revision: pos.fecha_revision_gestor || null,
               fecha_liberacion: pos.fecha_liberacion || null,
               fecha_creacion:   idx === 0 ? (sol.fecha_respuesta || null) : null,
               tiempo_total:     idx === 0 ? tiempoTotal(sol.fecha_recepcion, sol.fecha_respuesta) : '',
