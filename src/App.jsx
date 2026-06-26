@@ -64,13 +64,13 @@ function AppShell() {
       { id:'dashboard',  icon:'📊', label:'Dashboard' },
     ];
     defaultPage = 'baseDatos';
-  } else if (isGestor) {
+} else if (isGestor) {
     navItems = [
       { id:'gestorInventario', icon:'📦', label:'Inventario' },
       { id:'misRevisiones',    icon:'📋', label:'Mi historial' },
     ];
     defaultPage = 'gestorInventario';
-} else if (isLider) {
+  } else if (isLider) {
     navItems = [
       { id:'liderCategoria',  icon:'✓',  label:'Aprobaciones' },
       { id:'misAprobaciones', icon:'📋', label:'Historial' },
@@ -78,7 +78,6 @@ function AppShell() {
       { id:'reportes',        icon:'📈', label:'Reportes' },
     ];
     defaultPage = 'liderCategoria';
-  }
   } else {
     // SOLICITANTE
     navItems = [
