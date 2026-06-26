@@ -41,6 +41,20 @@ function bgTiempo(iso) {
   return '#dcfce7';
 }
 
+// Encabezado de tabla con soporte para doble renglón
+function Th({ children }) {
+  return (
+    <th style={{
+      padding:'8px 10px', background:'#f5f6fa', fontSize:10, fontWeight:600,
+      color:'#6b7280', textTransform:'uppercase', letterSpacing:'.5px',
+      textAlign:'left', borderBottom:'1px solid #e2e5ef',
+      whiteSpace:'normal', lineHeight:1.3, minWidth:60, maxWidth:120,
+    }}>
+      {children}
+    </th>
+  );
+}
+
 export default function LiderCategoria() {
   const { user } = useAuth();
   const [solicitudes, setSolicitudes] = useState([]);
@@ -50,6 +64,9 @@ export default function LiderCategoria() {
   const [formPosiciones, setFormPosiciones] = useState({});
   const [saving, setSaving] = useState(false);
   const [, setTick] = useState(0);
+
+  // Nombre con género para el saludo
+  const nombreUsuario = user?.nombre?.split(' ')[0] || '';
 
   useEffect(() => { load(); }, []);
 
@@ -81,7 +98,6 @@ export default function LiderCategoria() {
 
       setSolicitudes(todas);
 
-      // Recopilar todos los emails de gestores de las posiciones
       const emailsGestores = new Set();
       todas.forEach(sol => {
         (sol._misPosiciones || []).forEach(p => {
@@ -160,8 +176,9 @@ export default function LiderCategoria() {
       await Promise.all(
         posicionesAprobables().map(p =>
           actualizarPosicion(p.id, {
-            estado:       'Aprobada',
-            estado_lider: 'Aprobada',
+            estado:            'Aprobada',
+            estado_lider:      'Aprobada',
+            fecha_liberacion:  new Date().toISOString(),
           })
         )
       );
@@ -190,12 +207,17 @@ export default function LiderCategoria() {
     setSaving(false);
   }
 
-  // Obtener el gestor de las posiciones filtradas de una solicitud
   function gestorDeMisPosiciones(sol) {
     const misPosiciones = sol._misPosiciones || [];
     const emailGestor = misPosiciones.find(p => p.asignado_gestor)?.asignado_gestor;
     if (!emailGestor) return null;
     return nombresGestores[emailGestor] || emailGestor.split('@')[0];
+  }
+
+  function fechaLiberacion(sol) {
+    const misPosiciones = sol._misPosiciones || [];
+    const pos = misPosiciones.find(p => p.fecha_liberacion);
+    return pos?.fecha_liberacion || null;
   }
 
   const pendientes = solicitudes.filter(s => {
@@ -213,20 +235,41 @@ export default function LiderCategoria() {
   const posRechazadas = selected ? Object.values(formPosiciones).filter(f => f.rechazada).length : 0;
   const posAprobables = selected ? posicionesAprobables().length : 0;
 
-  const COLS = [
-    'Ticket','Solicitante','Unidad de Negocio','País','Gestor Asignado',
-    'Posiciones','Fecha y Hora','Tiempo','Tiempo sin Liberación','Estado','Acción'
-  ];
+  // Componente avatar gestor
+  const AvatarGestor = ({ sol }) => {
+    const nombre = gestorDeMisPosiciones(sol);
+    if (!nombre) return <span style={{color:'#9ca3af', fontSize:12}}>—</span>;
+    return (
+      <span style={{display:'flex', alignItems:'center', gap:6}}>
+        <span style={{width:24, height:24, borderRadius:'50%', background:'#e0e7ff',
+          color:'#4f46e5', fontSize:10, fontWeight:700, flexShrink:0,
+          display:'inline-flex', alignItems:'center', justifyContent:'center'}}>
+          {nombre.charAt(0).toUpperCase()}
+        </span>
+        <span style={{fontSize:12, color:'#374151', fontWeight:500}}>{nombre}</span>
+      </span>
+    );
+  };
 
   return (
     <div style={s.wrap}>
+
+      {/* ── SALUDO ── */}
+      <div style={s.saludo}>
+        <span style={s.saludoTexto}>
+          Hola <strong>{nombreUsuario}</strong>, bienvenida/o al Portal Data Master
+        </span>
+        <span style={{fontSize:12, color:'#9ca3af'}}>
+          {pendientes.length} solicitud(es) pendiente(s) de liberar
+        </span>
+      </div>
 
       {/* ── PENDIENTES ── */}
       <div style={s.card}>
         <div style={s.header}>
           <div>
             <h2 style={s.h2}>Pendientes de aprobar</h2>
-            <p style={s.sub}>Paso 3: Aprueba o rechaza solicitudes</p>
+            <p style={s.sub}>Aprueba o rechaza las posiciones de tus categorías</p>
           </div>
           <span style={{fontSize:13, color:'#9ca3af'}}>{pendientes.length} pendientes</span>
         </div>
@@ -239,7 +282,19 @@ export default function LiderCategoria() {
           <div style={{overflowX:'auto'}}>
             <table style={s.table}>
               <thead>
-                <tr>{COLS.map(h => <th key={h} style={s.th}>{h}</th>)}</tr>
+                <tr>
+                  <Th>Ticket</Th>
+                  <Th>Solicitante</Th>
+                  <Th>Unidad de<br/>Negocio</Th>
+                  <Th>País</Th>
+                  <Th>Gestor<br/>Asignado</Th>
+                  <Th>Pos.</Th>
+                  <Th>Fecha y Hora<br/>de Solicitud</Th>
+                  <Th>Tiempo</Th>
+                  <Th>Tiempo sin<br/>Liberación</Th>
+                  <Th>Estado</Th>
+                  <Th>Acción</Th>
+                </tr>
               </thead>
               <tbody>
                 {pendientes.map(sol => (
@@ -249,33 +304,15 @@ export default function LiderCategoria() {
                     </td>
                     <td style={s.td}>{sol.nombre_solicitante}</td>
                     <td style={s.td}>
-                      <span style={{background:'#eff4ff', color:'#2563eb', padding:'2px 8px', borderRadius:10, fontWeight:600, fontSize:11}}>
+                      <span style={{background:'#eff4ff', color:'#2563eb', padding:'2px 6px', borderRadius:8, fontWeight:600, fontSize:11}}>
                         {sol.unidad_negocio || '—'}
                       </span>
                     </td>
                     <td style={s.td}>{FLAG[sol.pais]||''} {sol.pais}</td>
-
-                    {/* Gestor de MIS posiciones */}
-                    <td style={s.td}>
-                      {gestorDeMisPosiciones(sol) ? (
-                        <span style={{display:'flex', alignItems:'center', gap:6}}>
-                          <span style={{width:24, height:24, borderRadius:'50%', background:'#e0e7ff',
-                            color:'#4f46e5', fontSize:10, fontWeight:700, flexShrink:0,
-                            display:'inline-flex', alignItems:'center', justifyContent:'center'}}>
-                            {gestorDeMisPosiciones(sol).charAt(0).toUpperCase()}
-                          </span>
-                          <span style={{fontSize:12, color:'#374151', fontWeight:500}}>
-                            {gestorDeMisPosiciones(sol)}
-                          </span>
-                        </span>
-                      ) : (
-                        <span style={{color:'#9ca3af', fontSize:12}}>—</span>
-                      )}
-                    </td>
-
+                    <td style={s.td}><AvatarGestor sol={sol} /></td>
                     <td style={{...s.td, textAlign:'center'}}>
                       <span style={{background:'#f5f6fa', border:'1px solid #e2e5ef', borderRadius:8,
-                        padding:'2px 10px', fontSize:12, fontWeight:700, color:'#374151'}}>
+                        padding:'2px 8px', fontSize:12, fontWeight:700, color:'#374151'}}>
                         {(sol._misPosiciones || []).length}
                       </span>
                     </td>
@@ -321,42 +358,69 @@ export default function LiderCategoria() {
           <div style={{overflowX:'auto'}}>
             <table style={s.table}>
               <thead>
-                <tr>{['Ticket','Solicitante','Unidad de Negocio','País','Gestor Asignado','Estado','Fecha'].map(h=>
-                  <th key={h} style={s.th}>{h}</th>
-                )}</tr>
+                <tr>
+                  <Th>Ticket</Th>
+                  <Th>Solicitante</Th>
+                  <Th>Unidad de<br/>Negocio</Th>
+                  <Th>País</Th>
+                  <Th>Gestor<br/>Asignado</Th>
+                  <Th>Pos.</Th>
+                  <Th>Fecha y Hora<br/>de Solicitud</Th>
+                  <Th>Tiempo</Th>
+                  <Th>Tiempo sin<br/>Liberación</Th>
+                  <Th>Fecha y Hora<br/>de Liberación</Th>
+                  <Th>Estado</Th>
+                </tr>
               </thead>
               <tbody>
                 {procesadas.map(sol => (
-                  <tr key={sol.id} style={{opacity:.75}}>
-                    <td style={{...s.td, fontFamily:'monospace', color:'#2563eb', fontWeight:600}}>{sol.ticket_id}</td>
+                  <tr key={sol.id} style={{opacity:.85}}>
+                    <td style={{...s.td, fontFamily:'monospace', color:'#2563eb', fontWeight:600}}>
+                      {sol.ticket_id}
+                    </td>
                     <td style={s.td}>{sol.nombre_solicitante}</td>
                     <td style={s.td}>
-                      <span style={{background:'#f5f6fa', color:'#374151', padding:'2px 8px', borderRadius:10, fontSize:11}}>
+                      <span style={{background:'#f5f6fa', color:'#374151', padding:'2px 6px', borderRadius:8, fontSize:11}}>
                         {sol.unidad_negocio || '—'}
                       </span>
                     </td>
                     <td style={s.td}>{FLAG[sol.pais]||''} {sol.pais}</td>
-                    <td style={s.td}>
-                      {gestorDeMisPosiciones(sol) ? (
-                        <span style={{display:'flex', alignItems:'center', gap:6}}>
-                          <span style={{width:22, height:22, borderRadius:'50%', background:'#e0e7ff',
-                            color:'#4f46e5', fontSize:10, fontWeight:700, flexShrink:0,
-                            display:'inline-flex', alignItems:'center', justifyContent:'center'}}>
-                            {gestorDeMisPosiciones(sol).charAt(0).toUpperCase()}
-                          </span>
-                          <span style={{fontSize:12, color:'#374151'}}>
-                            {gestorDeMisPosiciones(sol)}
-                          </span>
+                    <td style={s.td}><AvatarGestor sol={sol} /></td>
+                    <td style={{...s.td, textAlign:'center'}}>
+                      <span style={{background:'#f5f6fa', border:'1px solid #e2e5ef', borderRadius:8,
+                        padding:'2px 8px', fontSize:12, fontWeight:700, color:'#374151'}}>
+                        {(sol._misPosiciones || []).length}
+                      </span>
+                    </td>
+                    <td style={{...s.td, fontSize:11, color:'#374151', whiteSpace:'nowrap'}}>
+                      {formatFecha(sol.fecha_recepcion)}
+                    </td>
+                    <td style={{...s.td, whiteSpace:'nowrap'}}>
+                      <span style={{fontSize:11, fontWeight:700,
+                        color: colorTiempo(sol.fecha_recepcion),
+                        background: bgTiempo(sol.fecha_recepcion),
+                        padding:'2px 8px', borderRadius:10}}>
+                        ⏱ {tiempoTranscurrido(sol.fecha_recepcion)}
+                      </span>
+                    </td>
+                    <td style={{...s.td, whiteSpace:'nowrap'}}>
+                      {sol.fecha_asignado_lider ? (
+                        <span style={{fontSize:11, fontWeight:700,
+                          color: colorTiempo(sol.fecha_asignado_lider),
+                          background: bgTiempo(sol.fecha_asignado_lider),
+                          padding:'2px 8px', borderRadius:10}}>
+                          🔒 {tiempoTranscurrido(sol.fecha_asignado_lider)}
                         </span>
-                      ) : (
-                        <span style={{color:'#9ca3af', fontSize:12}}>—</span>
-                      )}
+                      ) : <span style={{color:'#9ca3af', fontSize:11}}>—</span>}
+                    </td>
+                    <td style={{...s.td, fontSize:11, color:'#16a34a', fontWeight:600, whiteSpace:'nowrap'}}>
+                      {formatFecha(fechaLiberacion(sol)) !== '—'
+                        ? <span style={{color:'#16a34a'}}>✓ {formatFecha(fechaLiberacion(sol))}</span>
+                        : <span style={{color:'#9ca3af'}}>—</span>
+                      }
                     </td>
                     <td style={s.td}>
                       <EstadoBadge paso={sol.paso} flujo={sol.flujo} />
-                    </td>
-                    <td style={{...s.td, fontSize:11, color:'#6b7280', whiteSpace:'nowrap'}}>
-                      {formatFecha(sol.fecha_recepcion)}
                     </td>
                   </tr>
                 ))}
@@ -541,6 +605,8 @@ export default function LiderCategoria() {
 
 const s = {
   wrap:          { padding:28 },
+  saludo:        { background:'#fff', border:'1px solid #e2e5ef', borderRadius:12, padding:'16px 24px', marginBottom:20, display:'flex', alignItems:'center', justifyContent:'space-between' },
+  saludoTexto:   { fontSize:16, color:'#0f1d3a' },
   card:          { background:'#fff', border:'1px solid #e2e5ef', borderRadius:12, overflow:'hidden', marginBottom:20 },
   header:        { padding:'20px 24px', borderBottom:'1px solid #e2e5ef', display:'flex', alignItems:'center', justifyContent:'space-between' },
   h2:            { fontSize:18, fontWeight:800, color:'#0f1d3a', margin:0 },
@@ -548,9 +614,8 @@ const s = {
   loading:       { padding:48, textAlign:'center', color:'#9ca3af' },
   empty:         { padding:48, textAlign:'center', color:'#9ca3af' },
   table:         { width:'100%', borderCollapse:'collapse' },
-  th:            { padding:'10px 14px', background:'#f5f6fa', fontSize:11, fontWeight:600, color:'#6b7280', textTransform:'uppercase', letterSpacing:'.6px', textAlign:'left', borderBottom:'1px solid #e2e5ef', whiteSpace:'nowrap' },
-  td:            { padding:'11px 14px', fontSize:13, color:'#374151', borderBottom:'1px solid #f0f2f8', verticalAlign:'middle' },
-  btnRevisar:    { padding:'5px 12px', background:'#eff4ff', color:'#2563eb', border:'1px solid #bfdbfe', borderRadius:7, fontSize:12, fontWeight:600, cursor:'pointer', whiteSpace:'nowrap' },
+  td:            { padding:'10px 10px', fontSize:12, color:'#374151', borderBottom:'1px solid #f0f2f8', verticalAlign:'middle' },
+  btnRevisar:    { padding:'5px 10px', background:'#eff4ff', color:'#2563eb', border:'1px solid #bfdbfe', borderRadius:7, fontSize:11, fontWeight:600, cursor:'pointer', whiteSpace:'nowrap' },
   modalBg:       { position:'fixed', inset:0, background:'rgba(0,0,0,.45)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:200, padding:24 },
   modal:         { background:'#fff', borderRadius:16, padding:32, maxWidth:600, width:'100%', boxShadow:'0 24px 64px rgba(0,0,0,.2)', maxHeight:'90vh', overflow:'auto' },
   mTitle:        { fontSize:18, fontWeight:800, color:'#0f1d3a', marginBottom:4 },
