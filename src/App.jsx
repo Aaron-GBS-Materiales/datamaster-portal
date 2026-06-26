@@ -152,7 +152,7 @@ function AppShell() {
 {page==='nueva'            && <NuevaSolicitud onSuccess={id => { setTicket(id); }} />}
 {page==='missol'           && <Dashboard soloMias />}
 {page==='misRevisiones'    && <Dashboard soloMias={isGestor} />}
-{page==='misAprobaciones'  && <Dashboard soloMias={isLider} />}
+{page==='misAprobaciones'  && <LiderCategoria soloHistorial />}
 {page==='usuarios'         && <Usuarios />}
 {page==='reportes'         && (
   <div style={{padding:28}}>
