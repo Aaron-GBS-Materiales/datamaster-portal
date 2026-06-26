@@ -41,7 +41,6 @@ function bgTiempo(iso) {
   return '#dcfce7';
 }
 
-// Encabezado de tabla con soporte para doble renglón
 function Th({ children }) {
   return (
     <th style={{
@@ -55,7 +54,7 @@ function Th({ children }) {
   );
 }
 
-export default function LiderCategoria() {
+export default function LiderCategoria({ soloHistorial = false }) {
   const { user } = useAuth();
   const [solicitudes, setSolicitudes] = useState([]);
   const [nombresGestores, setNombresGestores] = useState({});
@@ -65,7 +64,6 @@ export default function LiderCategoria() {
   const [saving, setSaving] = useState(false);
   const [, setTick] = useState(0);
 
-  // Nombre con género para el saludo
   const nombreUsuario = user?.nombre?.split(' ')[0] || '';
 
   useEffect(() => { load(); }, []);
@@ -176,9 +174,9 @@ export default function LiderCategoria() {
       await Promise.all(
         posicionesAprobables().map(p =>
           actualizarPosicion(p.id, {
-            estado:            'Aprobada',
-            estado_lider:      'Aprobada',
-            fecha_liberacion:  new Date().toISOString(),
+            estado:           'Aprobada',
+            estado_lider:     'Aprobada',
+            fecha_liberacion: new Date().toISOString(),
           })
         )
       );
@@ -232,10 +230,12 @@ export default function LiderCategoria() {
     return misPosiciones.length > 0 && misPosiciones.every(p => p.estado_lider === 'Aprobada');
   });
 
+  // En Aprobaciones solo los últimos 5, en Historial todos
+  const procesadasMostrar = soloHistorial ? procesadas : procesadas.slice(0, 5);
+
   const posRechazadas = selected ? Object.values(formPosiciones).filter(f => f.rechazada).length : 0;
   const posAprobables = selected ? posicionesAprobables().length : 0;
 
-  // Componente avatar gestor
   const AvatarGestor = ({ sol }) => {
     const nombre = gestorDeMisPosiciones(sol);
     if (!nombre) return <span style={{color:'#9ca3af', fontSize:12}}>—</span>;
@@ -251,182 +251,214 @@ export default function LiderCategoria() {
     );
   };
 
+  // Tabla de historial compartida
+  const TablaHistorial = ({ filas }) => (
+    <div style={{overflowX:'auto'}}>
+      <table style={s.table}>
+        <thead>
+          <tr>
+            <Th>Ticket</Th>
+            <Th>Solicitante</Th>
+            <Th>Unidad de<br/>Negocio</Th>
+            <Th>País</Th>
+            <Th>Gestor<br/>Asignado</Th>
+            <Th>Pos.</Th>
+            <Th>Fecha y Hora<br/>de Solicitud</Th>
+            <Th>Tiempo</Th>
+            <Th>Tiempo sin<br/>Liberación</Th>
+            <Th>Fecha y Hora<br/>de Liberación</Th>
+            <Th>Estado</Th>
+            <Th>Ver</Th>
+          </tr>
+        </thead>
+        <tbody>
+          {filas.map(sol => (
+            <tr key={sol.id} style={{opacity:.85}}>
+              <td style={{...s.td, fontFamily:'monospace', color:'#2563eb', fontWeight:600}}>
+                {sol.ticket_id}
+              </td>
+              <td style={s.td}>{sol.nombre_solicitante}</td>
+              <td style={s.td}>
+                <span style={{background:'#f5f6fa', color:'#374151', padding:'2px 6px', borderRadius:8, fontSize:11}}>
+                  {sol.unidad_negocio || '—'}
+                </span>
+              </td>
+              <td style={s.td}>{FLAG[sol.pais]||''} {sol.pais}</td>
+              <td style={s.td}><AvatarGestor sol={sol} /></td>
+              <td style={{...s.td, textAlign:'center'}}>
+                <span style={{background:'#f5f6fa', border:'1px solid #e2e5ef', borderRadius:8,
+                  padding:'2px 8px', fontSize:12, fontWeight:700, color:'#374151'}}>
+                  {(sol._misPosiciones || []).length}
+                </span>
+              </td>
+              <td style={{...s.td, fontSize:11, color:'#374151', whiteSpace:'nowrap'}}>
+                {formatFecha(sol.fecha_recepcion)}
+              </td>
+              <td style={{...s.td, whiteSpace:'nowrap'}}>
+                <span style={{fontSize:11, fontWeight:700,
+                  color: colorTiempo(sol.fecha_recepcion),
+                  background: bgTiempo(sol.fecha_recepcion),
+                  padding:'2px 8px', borderRadius:10}}>
+                  ⏱ {tiempoTranscurrido(sol.fecha_recepcion)}
+                </span>
+              </td>
+              <td style={{...s.td, whiteSpace:'nowrap'}}>
+                {sol.fecha_asignado_lider ? (
+                  <span style={{fontSize:11, fontWeight:700,
+                    color: colorTiempo(sol.fecha_asignado_lider),
+                    background: bgTiempo(sol.fecha_asignado_lider),
+                    padding:'2px 8px', borderRadius:10}}>
+                    🔒 {tiempoTranscurrido(sol.fecha_asignado_lider)}
+                  </span>
+                ) : <span style={{color:'#9ca3af', fontSize:11}}>—</span>}
+              </td>
+              <td style={{...s.td, fontSize:11, whiteSpace:'nowrap'}}>
+                {fechaLiberacion(sol)
+                  ? <span style={{color:'#16a34a', fontWeight:600}}>✓ {formatFecha(fechaLiberacion(sol))}</span>
+                  : <span style={{color:'#9ca3af'}}>—</span>
+                }
+              </td>
+              <td style={s.td}>
+                <EstadoBadge paso={sol.paso} flujo={sol.flujo} />
+              </td>
+              <td style={s.td}>
+                <button style={s.btnVer} onClick={() => handleRevisar(sol)}>Ver →</button>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+
   return (
     <div style={s.wrap}>
 
-      {/* ── SALUDO ── */}
-      <div style={s.saludo}>
-        <span style={s.saludoTexto}>
-          Hola <strong>{nombreUsuario}</strong>, bienvenida/o al Portal Data Master
-        </span>
-        <span style={{fontSize:12, color:'#9ca3af'}}>
-          {pendientes.length} solicitud(es) pendiente(s) de liberar
-        </span>
-      </div>
-
-      {/* ── PENDIENTES ── */}
-      <div style={s.card}>
-        <div style={s.header}>
-          <div>
-            <h2 style={s.h2}>Pendientes de aprobar</h2>
-            <p style={s.sub}>Aprueba o rechaza las posiciones de tus categorías</p>
-          </div>
-          <span style={{fontSize:13, color:'#9ca3af'}}>{pendientes.length} pendientes</span>
+      {/* ── SALUDO — solo en Aprobaciones ── */}
+      {!soloHistorial && (
+        <div style={s.saludo}>
+          <span style={s.saludoTexto}>
+            Hola <strong>{nombreUsuario}</strong>, bienvenida/o al Portal Data Master
+          </span>
+          <span style={{fontSize:12, color:'#9ca3af'}}>
+            {pendientes.length} solicitud(es) pendiente(s) de liberar
+          </span>
         </div>
+      )}
 
-        {loading ? (
-          <div style={s.loading}>Cargando…</div>
-        ) : pendientes.length === 0 ? (
-          <div style={s.empty}>No hay solicitudes pendientes</div>
-        ) : (
-          <div style={{overflowX:'auto'}}>
-            <table style={s.table}>
-              <thead>
-                <tr>
-                  <Th>Ticket</Th>
-                  <Th>Solicitante</Th>
-                  <Th>Unidad de<br/>Negocio</Th>
-                  <Th>País</Th>
-                  <Th>Gestor<br/>Asignado</Th>
-                  <Th>Pos.</Th>
-                  <Th>Fecha y Hora<br/>de Solicitud</Th>
-                  <Th>Tiempo</Th>
-                  <Th>Tiempo sin<br/>Liberación</Th>
-                  <Th>Estado</Th>
-                  <Th>Acción</Th>
-                </tr>
-              </thead>
-              <tbody>
-                {pendientes.map(sol => (
-                  <tr key={sol.id}>
-                    <td style={{...s.td, fontFamily:'monospace', color:'#2563eb', fontWeight:600, whiteSpace:'nowrap'}}>
-                      {sol.ticket_id}
-                    </td>
-                    <td style={s.td}>{sol.nombre_solicitante}</td>
-                    <td style={s.td}>
-                      <span style={{background:'#eff4ff', color:'#2563eb', padding:'2px 6px', borderRadius:8, fontWeight:600, fontSize:11}}>
-                        {sol.unidad_negocio || '—'}
-                      </span>
-                    </td>
-                    <td style={s.td}>{FLAG[sol.pais]||''} {sol.pais}</td>
-                    <td style={s.td}><AvatarGestor sol={sol} /></td>
-                    <td style={{...s.td, textAlign:'center'}}>
-                      <span style={{background:'#f5f6fa', border:'1px solid #e2e5ef', borderRadius:8,
-                        padding:'2px 8px', fontSize:12, fontWeight:700, color:'#374151'}}>
-                        {(sol._misPosiciones || []).length}
-                      </span>
-                    </td>
-                    <td style={{...s.td, fontSize:11, color:'#374151', whiteSpace:'nowrap'}}>
-                      {formatFecha(sol.fecha_recepcion)}
-                    </td>
-                    <td style={{...s.td, whiteSpace:'nowrap'}}>
-                      <span style={{fontSize:11, fontWeight:700,
-                        color: colorTiempo(sol.fecha_recepcion),
-                        background: bgTiempo(sol.fecha_recepcion),
-                        padding:'2px 8px', borderRadius:10}}>
-                        ⏱ {tiempoTranscurrido(sol.fecha_recepcion)}
-                      </span>
-                    </td>
-                    <td style={{...s.td, whiteSpace:'nowrap'}}>
-                      <span style={{fontSize:11, fontWeight:700,
-                        color: colorTiempo(sol.fecha_asignado_lider || sol.fecha_recepcion),
-                        background: bgTiempo(sol.fecha_asignado_lider || sol.fecha_recepcion),
-                        padding:'2px 8px', borderRadius:10}}>
-                        🔒 {tiempoTranscurrido(sol.fecha_asignado_lider || sol.fecha_recepcion)}
-                      </span>
-                    </td>
-                    <td style={s.td}>
-                      <EstadoBadge paso={sol.paso} flujo={sol.flujo} />
-                    </td>
-                    <td style={s.td}>
-                      <button style={s.btnRevisar} onClick={() => handleRevisar(sol)}>Revisar →</button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
-
-      {/* ── HISTORIAL ── */}
-      {procesadas.length > 0 && (
+      {/* ── PENDIENTES — solo en Aprobaciones ── */}
+      {!soloHistorial && (
         <div style={s.card}>
           <div style={s.header}>
-            <h3 style={{...s.h2, fontSize:16}}>Historial ({procesadas.length})</h3>
+            <div>
+              <h2 style={s.h2}>Pendientes de aprobar</h2>
+              <p style={s.sub}>Aprueba o rechaza las posiciones de tus categorías</p>
+            </div>
+            <span style={{fontSize:13, color:'#9ca3af'}}>{pendientes.length} pendientes</span>
           </div>
-          <div style={{overflowX:'auto'}}>
-            <table style={s.table}>
-              <thead>
-                <tr>
-                  <Th>Ticket</Th>
-                  <Th>Solicitante</Th>
-                  <Th>Unidad de<br/>Negocio</Th>
-                  <Th>País</Th>
-                  <Th>Gestor<br/>Asignado</Th>
-                  <Th>Pos.</Th>
-                  <Th>Fecha y Hora<br/>de Solicitud</Th>
-                  <Th>Tiempo</Th>
-                  <Th>Tiempo sin<br/>Liberación</Th>
-                  <Th>Fecha y Hora<br/>de Liberación</Th>
-                  <Th>Estado</Th>
-                </tr>
-              </thead>
-              <tbody>
-                {procesadas.map(sol => (
-                  <tr key={sol.id} style={{opacity:.85}}>
-                    <td style={{...s.td, fontFamily:'monospace', color:'#2563eb', fontWeight:600}}>
-                      {sol.ticket_id}
-                    </td>
-                    <td style={s.td}>{sol.nombre_solicitante}</td>
-                    <td style={s.td}>
-                      <span style={{background:'#f5f6fa', color:'#374151', padding:'2px 6px', borderRadius:8, fontSize:11}}>
-                        {sol.unidad_negocio || '—'}
-                      </span>
-                    </td>
-                    <td style={s.td}>{FLAG[sol.pais]||''} {sol.pais}</td>
-                    <td style={s.td}><AvatarGestor sol={sol} /></td>
-                    <td style={{...s.td, textAlign:'center'}}>
-                      <span style={{background:'#f5f6fa', border:'1px solid #e2e5ef', borderRadius:8,
-                        padding:'2px 8px', fontSize:12, fontWeight:700, color:'#374151'}}>
-                        {(sol._misPosiciones || []).length}
-                      </span>
-                    </td>
-                    <td style={{...s.td, fontSize:11, color:'#374151', whiteSpace:'nowrap'}}>
-                      {formatFecha(sol.fecha_recepcion)}
-                    </td>
-                    <td style={{...s.td, whiteSpace:'nowrap'}}>
-                      <span style={{fontSize:11, fontWeight:700,
-                        color: colorTiempo(sol.fecha_recepcion),
-                        background: bgTiempo(sol.fecha_recepcion),
-                        padding:'2px 8px', borderRadius:10}}>
-                        ⏱ {tiempoTranscurrido(sol.fecha_recepcion)}
-                      </span>
-                    </td>
-                    <td style={{...s.td, whiteSpace:'nowrap'}}>
-                      {sol.fecha_asignado_lider ? (
-                        <span style={{fontSize:11, fontWeight:700,
-                          color: colorTiempo(sol.fecha_asignado_lider),
-                          background: bgTiempo(sol.fecha_asignado_lider),
-                          padding:'2px 8px', borderRadius:10}}>
-                          🔒 {tiempoTranscurrido(sol.fecha_asignado_lider)}
-                        </span>
-                      ) : <span style={{color:'#9ca3af', fontSize:11}}>—</span>}
-                    </td>
-                    <td style={{...s.td, fontSize:11, color:'#16a34a', fontWeight:600, whiteSpace:'nowrap'}}>
-                      {formatFecha(fechaLiberacion(sol)) !== '—'
-                        ? <span style={{color:'#16a34a'}}>✓ {formatFecha(fechaLiberacion(sol))}</span>
-                        : <span style={{color:'#9ca3af'}}>—</span>
-                      }
-                    </td>
-                    <td style={s.td}>
-                      <EstadoBadge paso={sol.paso} flujo={sol.flujo} />
-                    </td>
+
+          {loading ? (
+            <div style={s.loading}>Cargando…</div>
+          ) : pendientes.length === 0 ? (
+            <div style={s.empty}>No hay solicitudes pendientes</div>
+          ) : (
+            <div style={{overflowX:'auto'}}>
+              <table style={s.table}>
+                <thead>
+                  <tr>
+                    <Th>Ticket</Th>
+                    <Th>Solicitante</Th>
+                    <Th>Unidad de<br/>Negocio</Th>
+                    <Th>País</Th>
+                    <Th>Gestor<br/>Asignado</Th>
+                    <Th>Pos.</Th>
+                    <Th>Fecha y Hora<br/>de Solicitud</Th>
+                    <Th>Tiempo</Th>
+                    <Th>Tiempo sin<br/>Liberación</Th>
+                    <Th>Estado</Th>
+                    <Th>Acción</Th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {pendientes.map(sol => (
+                    <tr key={sol.id}>
+                      <td style={{...s.td, fontFamily:'monospace', color:'#2563eb', fontWeight:600, whiteSpace:'nowrap'}}>
+                        {sol.ticket_id}
+                      </td>
+                      <td style={s.td}>{sol.nombre_solicitante}</td>
+                      <td style={s.td}>
+                        <span style={{background:'#eff4ff', color:'#2563eb', padding:'2px 6px', borderRadius:8, fontWeight:600, fontSize:11}}>
+                          {sol.unidad_negocio || '—'}
+                        </span>
+                      </td>
+                      <td style={s.td}>{FLAG[sol.pais]||''} {sol.pais}</td>
+                      <td style={s.td}><AvatarGestor sol={sol} /></td>
+                      <td style={{...s.td, textAlign:'center'}}>
+                        <span style={{background:'#f5f6fa', border:'1px solid #e2e5ef', borderRadius:8,
+                          padding:'2px 8px', fontSize:12, fontWeight:700, color:'#374151'}}>
+                          {(sol._misPosiciones || []).length}
+                        </span>
+                      </td>
+                      <td style={{...s.td, fontSize:11, color:'#374151', whiteSpace:'nowrap'}}>
+                        {formatFecha(sol.fecha_recepcion)}
+                      </td>
+                      <td style={{...s.td, whiteSpace:'nowrap'}}>
+                        <span style={{fontSize:11, fontWeight:700,
+                          color: colorTiempo(sol.fecha_recepcion),
+                          background: bgTiempo(sol.fecha_recepcion),
+                          padding:'2px 8px', borderRadius:10}}>
+                          ⏱ {tiempoTranscurrido(sol.fecha_recepcion)}
+                        </span>
+                      </td>
+                      <td style={{...s.td, whiteSpace:'nowrap'}}>
+                        <span style={{fontSize:11, fontWeight:700,
+                          color: colorTiempo(sol.fecha_asignado_lider || sol.fecha_recepcion),
+                          background: bgTiempo(sol.fecha_asignado_lider || sol.fecha_recepcion),
+                          padding:'2px 8px', borderRadius:10}}>
+                          🔒 {tiempoTranscurrido(sol.fecha_asignado_lider || sol.fecha_recepcion)}
+                        </span>
+                      </td>
+                      <td style={s.td}>
+                        <EstadoBadge paso={sol.paso} flujo={sol.flujo} />
+                      </td>
+                      <td style={s.td}>
+                        <button style={s.btnRevisar} onClick={() => handleRevisar(sol)}>Revisar →</button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── HISTORIAL ── */}
+      {(soloHistorial || procesadasMostrar.length > 0) && (
+        <div style={s.card}>
+          <div style={s.header}>
+            <div>
+              <h3 style={{...s.h2, fontSize: soloHistorial ? 18 : 16}}>
+                {soloHistorial ? 'Historial completo' : 'Historial'} ({soloHistorial ? procesadas.length : procesadasMostrar.length})
+              </h3>
+              {soloHistorial && (
+                <p style={s.sub}>Todas las solicitudes que has aprobado o rechazado</p>
+              )}
+            </div>
+            {!soloHistorial && procesadas.length > 5 && (
+              <span style={{fontSize:12, color:'#6b7280'}}>
+                Últimas 5 de {procesadas.length}
+              </span>
+            )}
           </div>
+
+          {loading && soloHistorial ? (
+            <div style={s.loading}>Cargando…</div>
+          ) : procesadasMostrar.length === 0 ? (
+            <div style={s.empty}>No hay solicitudes en el historial</div>
+          ) : (
+            <TablaHistorial filas={procesadasMostrar} />
+          )}
         </div>
       )}
 
@@ -434,7 +466,9 @@ export default function LiderCategoria() {
       {selected && (
         <div style={s.modalBg} onClick={() => setSelected(null)}>
           <div style={s.modal} onClick={e => e.stopPropagation()}>
-            <h3 style={s.mTitle}>Revisar Solicitud</h3>
+            <h3 style={s.mTitle}>
+              {soloHistorial ? 'Detalle de Solicitud' : 'Revisar Solicitud'}
+            </h3>
             <p style={s.mSub}>{selected.ticket_id} · {selected.nombre_solicitante}</p>
 
             <div style={{display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:10, marginBottom:16}}>
@@ -483,7 +517,7 @@ export default function LiderCategoria() {
 
             <div style={s.posicionesBox}>
               <div style={{fontSize:12, fontWeight:700, color:'#0f1d3a', marginBottom:12}}>
-                Posiciones asignadas ({selected.posiciones?.length || 0})
+                Posiciones ({selected.posiciones?.length || 0})
               </div>
 
               {selected.posiciones && selected.posiciones.map((pos, idx) => {
@@ -511,7 +545,9 @@ export default function LiderCategoria() {
                       {rechazada ? (
                         <span style={{fontSize:10, fontWeight:700, color:'#dc2626', background:'#fef2f2', padding:'2px 8px', borderRadius:10}}>✗ Rechazada</span>
                       ) : (
-                        <span style={{fontSize:10, fontWeight:700, color:'#16a34a', background:'#dcfce7', padding:'2px 8px', borderRadius:10}}>✓ Aprobable</span>
+                        <span style={{fontSize:10, fontWeight:700, color:'#16a34a', background:'#dcfce7', padding:'2px 8px', borderRadius:10}}>
+                          {soloHistorial ? '✓ Aprobada' : '✓ Aprobable'}
+                        </span>
                       )}
                     </div>
 
@@ -548,7 +584,7 @@ export default function LiderCategoria() {
                       </div>
                     </div>
 
-                    {!rechazada && (
+                    {!soloHistorial && !rechazada && (
                       !posForm.mostrarRechazo ? (
                         <button style={s.btnRechazarPos}
                           onClick={() => handleChangePos(pos.id, 'mostrarRechazo', true)}>
@@ -585,16 +621,20 @@ export default function LiderCategoria() {
             </div>
 
             <div style={{display:'flex', gap:10, justifyContent:'flex-end', flexWrap:'wrap'}}>
-              <button style={s.btnCancel} onClick={() => setSelected(null)}>Cancelar</button>
-              <button style={s.btnReject} onClick={handleRechazarTodo} disabled={saving}>✗ Rechazar todo</button>
-              <button
-                style={{...s.btnApprove, opacity: hayAlgoAprobable() ? 1 : 0.5}}
-                onClick={handleAprobarTodo}
-                disabled={!hayAlgoAprobable() || saving}>
-                {saving ? 'Procesando…' : posRechazadas > 0
-                  ? `✓ Aprobar ${posAprobables} posición(es)`
-                  : '✓ Aprobar solicitud'}
+              <button style={s.btnCancel} onClick={() => setSelected(null)}>
+                {soloHistorial ? 'Cerrar' : 'Cancelar'}
               </button>
+              {!soloHistorial && <>
+                <button style={s.btnReject} onClick={handleRechazarTodo} disabled={saving}>✗ Rechazar todo</button>
+                <button
+                  style={{...s.btnApprove, opacity: hayAlgoAprobable() ? 1 : 0.5}}
+                  onClick={handleAprobarTodo}
+                  disabled={!hayAlgoAprobable() || saving}>
+                  {saving ? 'Procesando…' : posRechazadas > 0
+                    ? `✓ Aprobar ${posAprobables} posición(es)`
+                    : '✓ Aprobar solicitud'}
+                </button>
+              </>}
             </div>
           </div>
         </div>
@@ -616,6 +656,7 @@ const s = {
   table:         { width:'100%', borderCollapse:'collapse' },
   td:            { padding:'10px 10px', fontSize:12, color:'#374151', borderBottom:'1px solid #f0f2f8', verticalAlign:'middle' },
   btnRevisar:    { padding:'5px 10px', background:'#eff4ff', color:'#2563eb', border:'1px solid #bfdbfe', borderRadius:7, fontSize:11, fontWeight:600, cursor:'pointer', whiteSpace:'nowrap' },
+  btnVer:        { padding:'5px 10px', background:'#f5f6fa', color:'#374151', border:'1px solid #e2e5ef', borderRadius:7, fontSize:11, fontWeight:600, cursor:'pointer', whiteSpace:'nowrap' },
   modalBg:       { position:'fixed', inset:0, background:'rgba(0,0,0,.45)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:200, padding:24 },
   modal:         { background:'#fff', borderRadius:16, padding:32, maxWidth:600, width:'100%', boxShadow:'0 24px 64px rgba(0,0,0,.2)', maxHeight:'90vh', overflow:'auto' },
   mTitle:        { fontSize:18, fontWeight:800, color:'#0f1d3a', marginBottom:4 },
