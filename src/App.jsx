@@ -23,6 +23,7 @@ function SuccessModal({ ticketID, onClose }) {
     </div>
   );
 }
+
 const ms = {
   bg:     { position:'fixed',inset:0,background:'rgba(0,0,0,.45)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:300,padding:24 },
   modal:  { background:'#fff',borderRadius:16,padding:'40px 36px',maxWidth:400,width:'100%',textAlign:'center',boxShadow:'0 24px 64px rgba(0,0,0,.25)' },
@@ -35,50 +36,71 @@ const ms = {
 
 function AppShell() {
   const { user, logout } = useAuth();
-  const isAdmin = user?.rol === 'ADMINISTRADOR' || user?.rol === 'DATA MASTER';
-  
+
+  const rol = user?.rol;
+  const isAdmin      = rol === 'ADMINISTRADOR';
+  const isDataMaster = rol === 'DATA MASTER';
+  const isGestor     = rol === 'GESTOR DE INVENTARIO';
+  const isLider      = rol === 'LIDER DE CATEGORÍA';
+  const isSolicitante = !isAdmin && !isDataMaster && !isGestor && !isLider;
+
+  // ── Navegación por rol ──
   let navItems = [];
+  let defaultPage = 'nueva';
+
   if (isAdmin) {
     navItems = [
-      { id:'dashboard',       icon:'📊', label:'Dashboard' },
+      { id:'dashboard',        icon:'📊', label:'Dashboard' },
       { id:'gestorInventario', icon:'📦', label:'Gestor de Inventario' },
       { id:'liderCategoria',   icon:'✓',  label:'Líder de Categoría' },
       { id:'baseDatos',        icon:'💾', label:'Base de Datos' },
       { id:'usuarios',         icon:'👥', label:'Usuarios' },
     ];
-  } else if (user?.rol === 'GESTOR DE INVENTARIO') {
+    defaultPage = 'dashboard';
+  } else if (isDataMaster) {
+    // DATA MASTER: solo Base de Datos y Dashboard
+    navItems = [
+      { id:'baseDatos',  icon:'💾', label:'Base de Datos' },
+      { id:'dashboard',  icon:'📊', label:'Dashboard' },
+    ];
+    defaultPage = 'baseDatos';
+  } else if (isGestor) {
     navItems = [
       { id:'gestorInventario', icon:'📦', label:'Inventario' },
-      { id:'misRevisiones', icon:'📋', label:'Mi historial' },
+      { id:'misRevisiones',    icon:'📋', label:'Mi historial' },
     ];
-  } else if (user?.rol === 'LIDER DE CATEGORÍA') {
+    defaultPage = 'gestorInventario';
+  } else if (isLider) {
     navItems = [
-      { id:'liderCategoria', icon:'✓', label:'Aprobaciones' },
+      { id:'liderCategoria',  icon:'✓',  label:'Aprobaciones' },
       { id:'misAprobaciones', icon:'📋', label:'Mi historial' },
     ];
+    defaultPage = 'liderCategoria';
   } else {
+    // SOLICITANTE
     navItems = [
       { id:'nueva',  icon:'➕', label:'Nueva solicitud' },
       { id:'missol', icon:'📋', label:'Mis solicitudes' },
     ];
+    defaultPage = 'nueva';
   }
 
-  const defaultPage = isAdmin ? 'dashboard' : (user?.rol === 'GESTOR DE INVENTARIO' ? 'gestorInventario' : (user?.rol === 'LIDER DE CATEGORÍA' ? 'liderCategoria' : 'nueva'));
-  const [page, setPage]   = useState(defaultPage);
+  const [page, setPage]     = useState(defaultPage);
   const [ticket, setTicket] = useState(null);
-  const initials = user?.nombre?.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase()||'?';
-  
+
+  const initials = user?.nombre?.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase() || '?';
+
   const getPageTitle = () => {
     const titles = {
-      dashboard: 'Dashboard',
+      dashboard:        'Dashboard',
       gestorInventario: 'Gestor de Inventario',
-      liderCategoria: 'Líder de Categoría',
-      baseDatos: 'Base de Datos',
-      nueva: 'Nueva solicitud',
-      missol: 'Mis solicitudes',
-      misRevisiones: 'Mi historial',
-      misAprobaciones: 'Mi historial',
-      usuarios: 'Usuarios',
+      liderCategoria:   'Líder de Categoría',
+      baseDatos:        'Base de Datos',
+      nueva:            'Nueva solicitud',
+      missol:           'Mis solicitudes',
+      misRevisiones:    'Mi historial',
+      misAprobaciones:  'Mi historial',
+      usuarios:         'Usuarios',
     };
     return titles[page] || '';
   };
@@ -102,10 +124,10 @@ function AppShell() {
           </div>
         </div>
         <nav style={sh.nav}>
-          {navItems.map(item=>(
+          {navItems.map(item => (
             <button key={item.id}
-              style={{...sh.navItem,...(page===item.id?sh.navActive:{})}}
-              onClick={()=>setPage(item.id)}>
+              style={{...sh.navItem, ...(page===item.id ? sh.navActive : {})}}
+              onClick={() => setPage(item.id)}>
               <span style={{fontSize:15}}>{item.icon}</span>
               {item.label}
             </button>
@@ -121,19 +143,24 @@ function AppShell() {
           <div style={sh.av}>{initials}</div>
         </div>
         <div>
-          {page==='dashboard'       && <Dashboard />}
+          {page==='dashboard'        && <Dashboard />}
           {page==='gestorInventario' && <GestorInventario />}
           {page==='liderCategoria'   && <LiderCategoria />}
           {page==='baseDatos'        && <BaseDatos />}
-          {page==='nueva'            && <NuevaSolicitud onSuccess={id=>{setTicket(id);}} />}
+          {page==='nueva'            && <NuevaSolicitud onSuccess={id => { setTicket(id); }} />}
           {page==='missol'           && <Dashboard soloMias />}
-          {page==='misRevisiones'    && <Dashboard soloMias={user?.rol === 'GESTOR DE INVENTARIO'} />}
-          {page==='misAprobaciones'  && <Dashboard soloMias={user?.rol === 'LIDER DE CATEGORÍA'} />}
+          {page==='misRevisiones'    && <Dashboard soloMias={isGestor} />}
+          {page==='misAprobaciones'  && <Dashboard soloMias={isLider} />}
           {page==='usuarios'         && <Usuarios />}
         </div>
       </div>
 
-      {ticket && <SuccessModal ticketID={ticket} onClose={()=>{setTicket(null);setPage(isAdmin?'dashboard':'missol');}} />}
+      {ticket && (
+        <SuccessModal
+          ticketID={ticket}
+          onClose={() => { setTicket(null); setPage(isSolicitante ? 'missol' : defaultPage); }}
+        />
+      )}
     </div>
   );
 }
