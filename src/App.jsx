@@ -70,12 +70,15 @@ function AppShell() {
       { id:'misRevisiones',    icon:'📋', label:'Mi historial' },
     ];
     defaultPage = 'gestorInventario';
-  } else if (isLider) {
+} else if (isLider) {
     navItems = [
       { id:'liderCategoria',  icon:'✓',  label:'Aprobaciones' },
-      { id:'misAprobaciones', icon:'📋', label:'Mi historial' },
+      { id:'misAprobaciones', icon:'📋', label:'Historial' },
+      { id:'dashboard',       icon:'📊', label:'Dashboard' },
+      { id:'reportes',        icon:'📈', label:'Reportes' },
     ];
     defaultPage = 'liderCategoria';
+  }
   } else {
     // SOLICITANTE
     navItems = [
@@ -152,6 +155,12 @@ function AppShell() {
           {page==='misRevisiones'    && <Dashboard soloMias={isGestor} />}
           {page==='misAprobaciones'  && <Dashboard soloMias={isLider} />}
           {page==='usuarios'         && <Usuarios />}
+          {page==='reportes'         && (
+  <div style={{padding:28}}>
+    <h2 style={{fontSize:18, fontWeight:800, color:'#0f1d3a', marginBottom:8}}>Reportes</h2>
+    <p style={{fontSize:13, color:'#6b7280'}}>Próximamente disponible.</p>
+  </div>
+)}
         </div>
       </div>
 
