@@ -180,17 +180,18 @@ async function handleEnviarALider() {
   setSaving(true);
   try {
     // 1. Marcar mis posiciones como revisadas
-    await Promise.all(
-      posicionesAprobables().map(p =>
-        actualizarPosicion(p.id, {
-          tipo_material:   formPosiciones[p.id].tipoMaterial,
-          grupo_articulos: formPosiciones[p.id].grupoArticulos,
-          estado:          'Aprobada',
-          estado_gestor:   'Revisada',
-          asignado_gestor: user.email,
-        })
-      )
-    );
+await Promise.all(
+  posicionesAprobables().map(p =>
+    actualizarPosicion(p.id, {
+      tipo_material:          formPosiciones[p.id].tipoMaterial,
+      grupo_articulos:        formPosiciones[p.id].grupoArticulos,
+      estado:                 'Aprobada',
+      estado_gestor:          'Revisada',
+      asignado_gestor:        user.email,
+      fecha_revision_gestor:  new Date().toISOString(), // ← AGREGAR
+    })
+  )
+);
 
     // 2. Verificar si TODAS las posiciones de la solicitud ya fueron revisadas
     //    por su gestor correspondiente
