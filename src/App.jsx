@@ -146,16 +146,16 @@ function AppShell() {
           <div style={sh.av}>{initials}</div>
         </div>
         <div>
-          {page==='dashboard'        && <Dashboard />}
-          {page==='gestorInventario' && <GestorInventario />}
-          {page==='liderCategoria'   && <LiderCategoria />}
-          {page==='baseDatos'        && <BaseDatos />}
-          {page==='nueva'            && <NuevaSolicitud onSuccess={id => { setTicket(id); }} />}
-          {page==='missol'           && <Dashboard soloMias />}
-          {page==='misRevisiones'    && <Dashboard soloMias={isGestor} />}
-          {page==='misAprobaciones'  && <Dashboard soloMias={isLider} />}
-          {page==='usuarios'         && <Usuarios />}
-          {page==='reportes'         && (
+{page==='dashboard'        && <Dashboard />}
+{page==='gestorInventario' && <GestorInventario />}
+{page==='liderCategoria'   && <LiderCategoria />}
+{page==='baseDatos'        && <BaseDatos />}
+{page==='nueva'            && <NuevaSolicitud onSuccess={id => { setTicket(id); }} />}
+{page==='missol'           && <Dashboard soloMias />}
+{page==='misRevisiones'    && <Dashboard soloMias={isGestor} />}
+{page==='misAprobaciones'  && <Dashboard soloMias={isLider} />}
+{page==='usuarios'         && <Usuarios />}
+{page==='reportes'         && (
   <div style={{padding:28}}>
     <h2 style={{fontSize:18, fontWeight:800, color:'#0f1d3a', marginBottom:8}}>Reportes</h2>
     <p style={{fontSize:13, color:'#6b7280'}}>Próximamente disponible.</p>
