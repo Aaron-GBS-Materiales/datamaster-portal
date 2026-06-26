@@ -1,13 +1,14 @@
 // App.jsx
 import { useState } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
-import Login          from './pages/Login';
-import Dashboard      from './pages/Dashboard';
-import NuevaSolicitud from './pages/NuevaSolicitud';
-import Usuarios       from './pages/Usuarios';
+import Login            from './pages/Login';
+import Dashboard        from './pages/Dashboard';
+import NuevaSolicitud   from './pages/NuevaSolicitud';
+import Usuarios         from './pages/Usuarios';
 import GestorInventario from './pages/GestorInventario';
 import LiderCategoria   from './pages/LiderCategoria';
 import BaseDatos        from './pages/BaseDatos';
+import Reportes         from './pages/Reportes';
 
 function SuccessModal({ ticketID, onClose }) {
   return (
@@ -37,15 +38,14 @@ const ms = {
 function AppShell() {
   const { user, logout } = useAuth();
 
-  const rol = user?.rol;
-  const isAdmin      = rol === 'ADMINISTRADOR';
-  const isDataMaster = rol === 'DATA MASTER';
-  const isGestor     = rol === 'GESTOR DE INVENTARIO';
-  const isLider      = rol === 'LIDER DE CATEGORÍA';
+  const rol           = user?.rol;
+  const isAdmin       = rol === 'ADMINISTRADOR';
+  const isDataMaster  = rol === 'DATA MASTER';
+  const isGestor      = rol === 'GESTOR DE INVENTARIO';
+  const isLider       = rol === 'LIDER DE CATEGORÍA';
   const isSolicitante = !isAdmin && !isDataMaster && !isGestor && !isLider;
 
-  // ── Navegación por rol ──
-  let navItems = [];
+  let navItems    = [];
   let defaultPage = 'nueva';
 
   if (isAdmin) {
@@ -55,16 +55,17 @@ function AppShell() {
       { id:'liderCategoria',   icon:'✓',  label:'Líder de Categoría' },
       { id:'baseDatos',        icon:'💾', label:'Base de Datos' },
       { id:'usuarios',         icon:'👥', label:'Usuarios' },
+      { id:'reportes',         icon:'📈', label:'Reportes' },
     ];
     defaultPage = 'dashboard';
   } else if (isDataMaster) {
-    // DATA MASTER: solo Base de Datos y Dashboard
     navItems = [
       { id:'baseDatos',  icon:'💾', label:'Base de Datos' },
       { id:'dashboard',  icon:'📊', label:'Dashboard' },
+      { id:'reportes',   icon:'📈', label:'Reportes' },
     ];
     defaultPage = 'baseDatos';
-} else if (isGestor) {
+  } else if (isGestor) {
     navItems = [
       { id:'gestorInventario', icon:'📦', label:'Inventario' },
       { id:'misRevisiones',    icon:'📋', label:'Mi historial' },
@@ -79,7 +80,6 @@ function AppShell() {
     ];
     defaultPage = 'liderCategoria';
   } else {
-    // SOLICITANTE
     navItems = [
       { id:'nueva',  icon:'➕', label:'Nueva solicitud' },
       { id:'missol', icon:'📋', label:'Mis solicitudes' },
@@ -103,6 +103,7 @@ function AppShell() {
       misRevisiones:    'Mi historial',
       misAprobaciones:  'Mi historial',
       usuarios:         'Usuarios',
+      reportes:         'Reportes',
     };
     return titles[page] || '';
   };
@@ -145,21 +146,16 @@ function AppShell() {
           <div style={sh.av}>{initials}</div>
         </div>
         <div>
-{page==='dashboard'        && <Dashboard />}
-{page==='gestorInventario' && <GestorInventario />}
-{page==='liderCategoria'   && <LiderCategoria />}
-{page==='baseDatos'        && <BaseDatos />}
-{page==='nueva'            && <NuevaSolicitud onSuccess={id => { setTicket(id); }} />}
-{page==='missol'           && <Dashboard soloMias />}
-{page==='misRevisiones'    && <Dashboard soloMias={isGestor} />}
-{page==='misAprobaciones'  && <LiderCategoria soloHistorial />}
-{page==='usuarios'         && <Usuarios />}
-{page==='reportes'         && (
-  <div style={{padding:28}}>
-    <h2 style={{fontSize:18, fontWeight:800, color:'#0f1d3a', marginBottom:8}}>Reportes</h2>
-    <p style={{fontSize:13, color:'#6b7280'}}>Próximamente disponible.</p>
-  </div>
-)}
+          {page==='dashboard'        && <Dashboard />}
+          {page==='gestorInventario' && <GestorInventario />}
+          {page==='liderCategoria'   && <LiderCategoria />}
+          {page==='baseDatos'        && <BaseDatos />}
+          {page==='nueva'            && <NuevaSolicitud onSuccess={id => { setTicket(id); }} />}
+          {page==='missol'           && <Dashboard soloMias />}
+          {page==='misRevisiones'    && <Dashboard soloMias={isGestor} />}
+          {page==='misAprobaciones'  && <LiderCategoria soloHistorial />}
+          {page==='usuarios'         && <Usuarios />}
+          {page==='reportes'         && <Reportes />}
         </div>
       </div>
 
