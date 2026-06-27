@@ -36,6 +36,7 @@ export async function createUser(u) {
       unidad_negocio: u.unidadNegocio,
       rol:            u.rol,
       categorias:     u.categorias || [],
+      centro:         u.centro || null,
       activo:         true,
     }])
     .select()
@@ -102,10 +103,10 @@ export async function getSolicitudes(emailFilter = null) {
 }
 
 export async function createSolicitud(data) {
-  const pais = data.pais || 'Perú';
+  const pais      = data.pais || 'Perú';
   const ticket_id = generateTicketID(pais);
-  const flujo = data.unidad_negocio === 'UNACEM PERU' ? 'extendido' : 'directo';
-  const paso  = flujo === 'extendido' ? 2 : 4;
+  const flujo     = data.unidad_negocio === 'UNACEM PERU' ? 'extendido' : 'directo';
+  const paso      = flujo === 'extendido' ? 2 : 4;
 
   const { data: sol, error: errSol } = await supabase
     .from('solicitudes')
@@ -115,6 +116,7 @@ export async function createSolicitud(data) {
       nombre_solicitante: data.nombre_solicitante,
       pais,
       unidad_negocio:     data.unidad_negocio,
+      centro:             data.centro || null,
       tipo_solicitud:     'Creación',
       flujo,
       paso,
@@ -200,7 +202,7 @@ export async function getSolicitudesPorPaso(paso) {
 export async function getSolicitudesPorRol(rol) {
   let pasos = [];
   if (rol === 'GESTOR DE INVENTARIO') pasos = [2];
-  if (rol === 'LIDER DE CATEGORÍA') pasos = [3];
+  if (rol === 'LIDER DE CATEGORÍA')   pasos = [3];
   if (rol === 'DATA MASTER' || rol === 'ADMINISTRADOR') pasos = [4, 5];
   if (rol === 'SOLICITANTE') pasos = [1, 2, 3, 4, 5];
   const { data, error } = await supabase
