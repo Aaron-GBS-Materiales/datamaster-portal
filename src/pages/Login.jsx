@@ -42,6 +42,7 @@ async function handleOTPSubmit(e) {
       unidad_negocio: user.unidad_negocio,
       rol:            user.rol,
       categorias:     user.categorias || [],
+      centro: user.centro || null,
     });
   } catch {
     setError('Error al validar el código.');
