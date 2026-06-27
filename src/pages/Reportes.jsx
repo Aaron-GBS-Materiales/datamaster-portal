@@ -210,12 +210,12 @@ export default function Reportes() {
   }
 
   const COLS = [
-    'Ticket', 'Solicitante', 'País', 'Unidad de Negocio', 'Gestor',
-    'Categoría', 'Código SAP', 'Tipo de Material', 'Grupo de Artículos',
-    'Denominación', 'Texto de Pedido', 'Fecha Solicitud',
-    'Fecha Revisión', 'Fecha Liberación', 'Fecha Creación',
-    'Tiempo Total', 'Estado',
-  ];
+  'Ticket', 'Solicitante', 'País', 'Unidad de Negocio',
+  'Fecha Solicitud', 'Tiempo Total',
+  'Gestor', 'Categoría', 'Código SAP', 'Tipo de Material',
+  'Grupo de Artículos', 'Denominación', 'Texto de Pedido',
+  'Fecha Revisión', 'Fecha Liberación', 'Fecha Creación', 'Estado',
+];
 
   const estadoColor = {
     'Atendido':             { color:'#16a34a', bg:'#dcfce7' },
@@ -296,80 +296,108 @@ export default function Reportes() {
                 </tr>
               </thead>
               <tbody>
-                {filasFiltradas.map((f, idx) => {
-                  const esNuevoTicket = f._esPrimeraPosicion || f.ticket;
-                  const ec = estadoColor[f.estado] || { color:'#6b7280', bg:'#f5f6fa' };
-                  return (
-                    <tr key={idx} style={{
-                      background: esNuevoTicket && idx > 0 ? '#fafbff' : '#fff',
-                      borderTop:  esNuevoTicket && idx > 0 ? '2px solid #e2e5ef' : 'none',
-                    }}>
-                      <td style={{padding:'9px 10px', fontSize:12, fontFamily:'monospace',
-                        color:'#2563eb', fontWeight:700, whiteSpace:'nowrap',
-                        borderBottom:'1px solid #f0f2f8'}}>
-                        {f.ticket}
-                      </td>
-                      <td style={td}>{f.solicitante}</td>
-                      <td style={td}>{f.pais}</td>
-                      <td style={{...td, fontSize:11}}>
-                        {f.unidad_negocio
-                          ? <span style={{background:'#eff4ff', color:'#2563eb', padding:'2px 6px',
-                              borderRadius:6, fontWeight:600, fontSize:10}}>
-                              {f.unidad_negocio}
-                            </span>
-                          : ''}
-                      </td>
-                      <td style={{...td, fontSize:11}}>{f.gestor}</td>
-                      <td style={{...td, fontSize:11}}>
-                        {f.categoria !== '—'
-                          ? <span style={{background:'#ede9fe', color:'#7c3aed', padding:'2px 6px',
-                              borderRadius:6, fontWeight:600, fontSize:10}}>
-                              {f.categoria}
-                            </span>
-                          : '—'}
-                      </td>
-                      <td style={{...td, fontFamily:'monospace', fontSize:11, color:'#16a34a', fontWeight:600}}>
-                        {f.codigo}
-                      </td>
-                      <td style={{...td, fontSize:11}}>{f.tipo_material}</td>
-                      <td style={{...td, fontSize:11}}>{f.grupo_articulos}</td>
-                      <td style={{...td, fontSize:11, maxWidth:160, overflow:'hidden',
-                        textOverflow:'ellipsis', whiteSpace:'nowrap'}} title={f.denominacion}>
-                        {f.denominacion}
-                      </td>
-                      <td style={{...td, fontSize:11, maxWidth:160, overflow:'hidden',
-                        textOverflow:'ellipsis', whiteSpace:'nowrap'}} title={f.texto_pedido}>
-                        {f.texto_pedido}
-                      </td>
-                      <td style={{...td, fontSize:11, whiteSpace:'nowrap', color:'#374151'}}>
-                        {f.fecha_solicitud ? formatFecha(f.fecha_solicitud) : ''}
-                      </td>
-                      <td style={{...td, fontSize:11, whiteSpace:'nowrap', color:'#374151'}}>
-                        {formatFecha(f.fecha_revision)}
-                      </td>
-                      <td style={{...td, fontSize:11, whiteSpace:'nowrap',
-                        color: f.fecha_liberacion ? '#16a34a' : '#374151',
-                        fontWeight: f.fecha_liberacion ? 600 : 400}}>
-                        {f.fecha_liberacion ? '✓ ' + formatFecha(f.fecha_liberacion) : '—'}
-                      </td>
-                      <td style={{...td, fontSize:11, whiteSpace:'nowrap', color:'#374151'}}>
-                        {f.fecha_creacion ? formatFecha(f.fecha_creacion) : ''}
-                      </td>
-                      <td style={{...td, fontSize:11, whiteSpace:'nowrap', fontWeight:600}}>
-                        {f.tiempo_total}
-                      </td>
-                      <td style={{padding:'9px 10px', borderBottom:'1px solid #f0f2f8'}}>
-                        {f.estado && (
-                          <span style={{fontSize:10, fontWeight:700, padding:'2px 7px',
-                            borderRadius:10, background: ec.bg, color: ec.color, whiteSpace:'nowrap'}}>
-                            {f.estado}
-                          </span>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
+  {(() => {
+    // Agrupar filas por solicitud para calcular rowSpan
+    const grupos = [];
+    filasFiltradas.forEach(f => {
+      if (f._esPrimeraPosicion || f.ticket) {
+        grupos.push({ filas: [f], solicitudId: f._solicitudId });
+      } else {
+        if (grupos.length > 0) grupos[grupos.length - 1].filas.push(f);
+      }
+    });
+
+    return grupos.map((grupo, gIdx) => (
+      grupo.filas.map((f, fIdx) => {
+        const rowSpan = grupo.filas.length;
+        const esPrimera = fIdx === 0;
+        const ec = estadoColor[f.estado] || { color:'#6b7280', bg:'#f5f6fa' };
+
+        return (
+          <tr key={`${gIdx}-${fIdx}`} style={{
+            background: '#fff',
+            borderTop: esPrimera && gIdx > 0 ? '2px solid #e2e5ef' : 'none',
+          }}>
+
+            {/* Celdas compartidas — solo primera posición con rowSpan */}
+            {esPrimera && (
+              <>
+                <td rowSpan={rowSpan} style={{...tdCentro, fontFamily:'monospace',
+                  color:'#2563eb', fontWeight:700, borderRight:'1px solid #f0f2f8'}}>
+                  {f.ticket}
+                </td>
+                <td rowSpan={rowSpan} style={{...tdCentro, borderRight:'1px solid #f0f2f8'}}>
+                  {f.solicitante}
+                </td>
+                <td rowSpan={rowSpan} style={{...tdCentro, borderRight:'1px solid #f0f2f8'}}>
+                  {f.pais}
+                </td>
+                <td rowSpan={rowSpan} style={{...tdCentro, borderRight:'1px solid #f0f2f8'}}>
+                  {f.unidad_negocio
+                    ? <span style={{background:'#eff4ff', color:'#2563eb', padding:'2px 6px',
+                        borderRadius:6, fontWeight:600, fontSize:10}}>
+                        {f.unidad_negocio}
+                      </span>
+                    : ''}
+                </td>
+                <td rowSpan={rowSpan} style={{...tdCentro, fontSize:11, borderRight:'1px solid #f0f2f8'}}>
+                  {f.fecha_solicitud ? formatFecha(f.fecha_solicitud) : ''}
+                </td>
+                <td rowSpan={rowSpan} style={{...tdCentro, fontSize:11, fontWeight:600,
+                  borderRight:'1px solid #f0f2f8'}}>
+                  {f.tiempo_total}
+                </td>
+              </>
+            )}
+
+            {/* Celdas por posición */}
+            <td style={{...td, fontSize:11}}>{f.gestor}</td>
+            <td style={{...td, fontSize:11}}>
+              {f.categoria !== '—'
+                ? <span style={{background:'#ede9fe', color:'#7c3aed', padding:'2px 6px',
+                    borderRadius:6, fontWeight:600, fontSize:10}}>
+                    {f.categoria}
+                  </span>
+                : '—'}
+            </td>
+            <td style={{...td, fontFamily:'monospace', fontSize:11, color:'#16a34a', fontWeight:600}}>
+              {f.codigo}
+            </td>
+            <td style={{...td, fontSize:11}}>{f.tipo_material}</td>
+            <td style={{...td, fontSize:11}}>{f.grupo_articulos}</td>
+            <td style={{...td, fontSize:11, maxWidth:160, overflow:'hidden',
+              textOverflow:'ellipsis', whiteSpace:'nowrap'}} title={f.denominacion}>
+              {f.denominacion}
+            </td>
+            <td style={{...td, fontSize:11, maxWidth:160, overflow:'hidden',
+              textOverflow:'ellipsis', whiteSpace:'nowrap'}} title={f.texto_pedido}>
+              {f.texto_pedido}
+            </td>
+            <td style={{...td, fontSize:11, whiteSpace:'nowrap', color:'#374151'}}>
+              {formatFecha(f.fecha_revision)}
+            </td>
+            <td style={{...td, fontSize:11, whiteSpace:'nowrap',
+              color: f.fecha_liberacion ? '#16a34a' : '#374151',
+              fontWeight: f.fecha_liberacion ? 600 : 400}}>
+              {f.fecha_liberacion ? '✓ ' + formatFecha(f.fecha_liberacion) : '—'}
+            </td>
+            <td style={{...td, fontSize:11, whiteSpace:'nowrap', color:'#374151'}}>
+              {f.fecha_creacion ? formatFecha(f.fecha_creacion) : ''}
+            </td>
+            <td style={{padding:'9px 10px', borderBottom:'1px solid #f0f2f8'}}>
+              {f.estado && (
+                <span style={{fontSize:10, fontWeight:700, padding:'2px 7px',
+                  borderRadius:10, background: ec.bg, color: ec.color, whiteSpace:'nowrap'}}>
+                  {f.estado}
+                </span>
+              )}
+            </td>
+          </tr>
+        );
+      })
+    ));
+  })()}
+</tbody>
             </table>
           </div>
         )}
@@ -381,4 +409,10 @@ export default function Reportes() {
 const td = {
   padding:'9px 10px', fontSize:12, color:'#374151',
   borderBottom:'1px solid #f0f2f8', verticalAlign:'middle',
+};
+
+const tdCentro = {
+  padding:'9px 10px', fontSize:12, color:'#374151',
+  borderBottom:'1px solid #f0f2f8', verticalAlign:'middle',
+  textAlign:'center', background:'#fafbff',
 };
