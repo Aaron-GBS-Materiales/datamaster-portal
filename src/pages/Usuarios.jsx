@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react';
 import { getAllUsers, createUser, toggleUserActivo } from '../services/supabase';
 
-const PAISES   = ['Perú','Colombia','Chile','Ecuador','Bolivia'];
+const PAISES = ['Perú','Colombia','Chile','Ecuador','Bolivia'];
 const UNIDADES_NEG = [
   'UNACEM CHILE','UNICON CHILE','PREANSA COLOMBIA','UNACEM ECUADOR',
   'UNACEM PERU','INVECO','CELEPSA - TERMOCHILCA','DIGICEM','UNACEM GBS',
@@ -10,25 +10,49 @@ const UNIDADES_NEG = [
   'UNACEM CORP','CALCEM DRAKE CEMENT','TEHACHAPI CEMENT'
 ];
 const ROLES = [
-  'SOLICITANTE',
-  'GESTOR DE INVENTARIO',
-  'LIDER DE CATEGORÍA',
-  'DATA MASTER',
-  'ADMINISTRADOR'
+  'SOLICITANTE','GESTOR DE INVENTARIO','LIDER DE CATEGORÍA','DATA MASTER','ADMINISTRADOR'
 ];
 const CATEGORIAS = [
-  'BIENES INDIRECTOS',
-  'CAPEX',
-  'ENERGIA Y COMBUST.',
-  'ENVASE P/CEMENTO',
-  'MATERIAS PRIMAS',
-  'MRO ELECTRICO/NICO',
-  'MRO MECANICO',
-  'REFRACTARIO AFINES',
-  'SUMIN/CONSUMIBLE',
+  'BIENES INDIRECTOS','CAPEX','ENERGIA Y COMBUST.','ENVASE P/CEMENTO',
+  'MATERIAS PRIMAS','MRO ELECTRICO/NICO','MRO MECANICO','REFRACTARIO AFINES','SUMIN/CONSUMIBLE',
 ];
+const CENTROS_UNACEM = [
+  { codigo:'U001', nombre:'ATOCONGO' },
+  { codigo:'U002', nombre:'CONDORCOCHA' },
+  { codigo:'U003', nombre:'LIMA OFICINA' },
+  { codigo:'U004', nombre:'MUELLE CONCHAN' },
+  { codigo:'U005', nombre:'CARPAPATA' },
+  { codigo:'U006', nombre:'OYON' },
+  { codigo:'U007', nombre:'MONSERRATE - TRANSITO' },
+  { codigo:'U008', nombre:'ANCIETA BLOQUETERA' },
+  { codigo:'U009', nombre:'CAJAMARQUILLA BLOQUETERA' },
+  { codigo:'U010', nombre:'SAN JUAN MIRAFLORES PAVIMENTAD' },
+  { codigo:'U011', nombre:'PUCARA' },
+  { codigo:'U012', nombre:'CULLUAY' },
+  { codigo:'U013', nombre:'SAN JUAN LURIGANCHO' },
+  { codigo:'U014', nombre:'CHORRILLOS' },
+  { codigo:'U015', nombre:'MANCHAY' },
+  { codigo:'U016', nombre:'CHINCHA' },
+  { codigo:'U017', nombre:'CARAPONGO' },
+  { codigo:'U018', nombre:'CALLAO' },
+  { codigo:'U019', nombre:'PISCO' },
+  { codigo:'U020', nombre:'PRO' },
+  { codigo:'U021', nombre:'SANTA CLARA' },
+  { codigo:'U022', nombre:'PARIACHI' },
+  { codigo:'U023', nombre:'HUANCAYO' },
+  { codigo:'U024', nombre:'MORON' },
+  { codigo:'U025', nombre:'QUIROZ' },
+  { codigo:'U026', nombre:'PLANTA VILLA PAVIMENTOS' },
+  { codigo:'U028', nombre:'DRAKE' },
+  { codigo:'U029', nombre:'SERCENCO-ILO' },
+  { codigo:'U030', nombre:'Compras Corporativas' },
+  { codigo:'U031', nombre:'CENTRAL TERMICA ATOCONGO' },
+  { codigo:'U032', nombre:'YESO LAS DUNAS' },
+  { codigo:'U033', nombre:'YESO LAS HIENAS' },
+];
+
 const FLAG  = { Perú:'🇵🇪', Colombia:'🇨🇴', Chile:'🇨🇱', Ecuador:'🇪🇨', Bolivia:'🇧🇴' };
-const EMPTY = { nombre:'', email:'', pais:'', unidadNegocio:'', rol:'SOLICITANTE', categorias:[] };
+const EMPTY = { nombre:'', email:'', pais:'', unidadNegocio:'', rol:'SOLICITANTE', categorias:[], centro:'' };
 
 export default function Usuarios() {
   const [users, setUsers]     = useState([]);
@@ -48,26 +72,26 @@ export default function Usuarios() {
 
   const set = (k, v) => setForm(f => ({...f, [k]: v}));
 
-  // Toggle categoría en el array
   function toggleCategoria(cat) {
     setForm(f => {
       const cats = f.categorias || [];
       return {
         ...f,
-        categorias: cats.includes(cat)
-          ? cats.filter(c => c !== cat)
-          : [...cats, cat]
+        categorias: cats.includes(cat) ? cats.filter(c => c !== cat) : [...cats, cat]
       };
     });
   }
 
-  // Mostrar selector de categorías solo para Gestor y Líder
-  const showCategorias = ['GESTOR DE INVENTARIO', 'LIDER DE CATEGORÍA'].includes(form.rol);
+  const showCategorias = ['GESTOR DE INVENTARIO','LIDER DE CATEGORÍA'].includes(form.rol);
+  const showCentro     = form.unidadNegocio === 'UNACEM PERU';
 
   async function handleAdd(e) {
     e.preventDefault();
     if (!form.nombre || !form.email || !form.pais || !form.unidadNegocio) {
       setError('Completa todos los campos.'); return;
+    }
+    if (showCentro && !form.centro) {
+      setError('Selecciona el centro para UNACEM PERU.'); return;
     }
     if (showCategorias && (!form.categorias || form.categorias.length === 0)) {
       setError('Asigna al menos una categoría para este rol.'); return;
@@ -118,7 +142,8 @@ export default function Usuarios() {
             </div>
             <div style={s.field}>
               <label style={s.label}>Unidad de negocio <span style={{color:'#dc2626'}}>*</span></label>
-              <select style={s.select} value={form.unidadNegocio} onChange={e => set('unidadNegocio', e.target.value)}>
+              <select style={s.select} value={form.unidadNegocio}
+                onChange={e => { set('unidadNegocio', e.target.value); set('centro', ''); }}>
                 <option value="">Seleccionar…</option>
                 {UNIDADES_NEG.map(u => <option key={u}>{u}</option>)}
               </select>
@@ -129,9 +154,29 @@ export default function Usuarios() {
                 {ROLES.map(r => <option key={r}>{r}</option>)}
               </select>
             </div>
+
+            {/* Centro — solo UNACEM PERU */}
+            {showCentro && (
+              <div style={s.field}>
+                <label style={s.label}>Centro <span style={{color:'#dc2626'}}>*</span></label>
+                <select style={s.select} value={form.centro} onChange={e => set('centro', e.target.value)}>
+                  <option value="">Seleccionar centro…</option>
+                  {CENTROS_UNACEM.map(c => (
+                    <option key={c.codigo} value={c.codigo}>
+                      {c.codigo} — {c.nombre}
+                    </option>
+                  ))}
+                </select>
+                {form.centro && (
+                  <span style={{fontSize:11, color:'#16a34a', fontWeight:600, marginTop:4}}>
+                    ✓ {CENTROS_UNACEM.find(c => c.codigo === form.centro)?.nombre}
+                  </span>
+                )}
+              </div>
+            )}
           </div>
 
-          {/* ── CATEGORÍAS — solo para Gestor y Líder ── */}
+          {/* ── CATEGORÍAS ── */}
           {showCategorias && (
             <div style={{marginTop:8, marginBottom:8, padding:16, background:'#f5f6fa',
               borderRadius:10, border:'1px solid #e2e5ef'}}>
@@ -147,17 +192,14 @@ export default function Usuarios() {
                 {CATEGORIAS.map(cat => {
                   const activa = (form.categorias || []).includes(cat);
                   return (
-                    <div key={cat}
-                      onClick={() => toggleCategoria(cat)}
-                      style={{
-                        padding:'8px 12px', borderRadius:8, cursor:'pointer', fontSize:12,
-                        fontWeight:600, border:'1.5px solid',
-                        borderColor: activa ? '#2563eb' : '#e2e5ef',
-                        background: activa ? '#eff4ff' : '#fff',
-                        color: activa ? '#2563eb' : '#6b7280',
-                        display:'flex', alignItems:'center', gap:6,
-                        transition:'all .15s',
-                      }}>
+                    <div key={cat} onClick={() => toggleCategoria(cat)} style={{
+                      padding:'8px 12px', borderRadius:8, cursor:'pointer', fontSize:12,
+                      fontWeight:600, border:'1.5px solid',
+                      borderColor: activa ? '#2563eb' : '#e2e5ef',
+                      background: activa ? '#eff4ff' : '#fff',
+                      color: activa ? '#2563eb' : '#6b7280',
+                      display:'flex', alignItems:'center', gap:6, transition:'all .15s',
+                    }}>
                       <span style={{fontSize:14}}>{activa ? '☑' : '☐'}</span>
                       {cat}
                     </div>
@@ -190,7 +232,7 @@ export default function Usuarios() {
           <div style={{overflowX:'auto'}}>
             <table style={s.table}>
               <thead>
-                <tr>{['Nombre','Correo','País','Unidad','Rol','Categorías','Acción'].map(h=>
+                <tr>{['Nombre','Correo','País','Unidad','Centro','Rol','Categorías','Acción'].map(h=>
                   <th key={h} style={s.th}>{h}</th>
                 )}</tr>
               </thead>
@@ -202,9 +244,18 @@ export default function Usuarios() {
                     <td style={s.td}>{FLAG[u.pais]||''} {u.pais}</td>
                     <td style={s.td}>{u.unidad_negocio}</td>
                     <td style={s.td}>
+                      {u.centro
+                        ? <span style={{fontSize:11, fontWeight:600, padding:'2px 7px',
+                            borderRadius:8, background:'#f0fdf4', color:'#16a34a',
+                            border:'1px solid #bbf7d0'}}>
+                            {u.centro} — {CENTROS_UNACEM.find(c => c.codigo === u.centro)?.nombre || ''}
+                          </span>
+                        : <span style={{color:'#9ca3af', fontSize:12}}>—</span>}
+                    </td>
+                    <td style={s.td}>
                       <span style={
-                        u.rol==='ADMINISTRADOR' ? s.badgeAdmin :
-                        u.rol==='DATA MASTER'   ? s.badgeDataMaster :
+                        u.rol==='ADMINISTRADOR'        ? s.badgeAdmin :
+                        u.rol==='DATA MASTER'          ? s.badgeDataMaster :
                         u.rol==='GESTOR DE INVENTARIO' ? s.badgeGestor :
                         u.rol==='LIDER DE CATEGORÍA'   ? s.badgeLider :
                         s.badgeSol
@@ -223,9 +274,7 @@ export default function Usuarios() {
                             </span>
                           ))}
                         </div>
-                      ) : (
-                        <span style={{color:'#9ca3af', fontSize:12}}>—</span>
-                      )}
+                      ) : <span style={{color:'#9ca3af', fontSize:12}}>—</span>}
                     </td>
                     <td style={s.td}>
                       <button style={s.btnDes}
@@ -236,7 +285,7 @@ export default function Usuarios() {
                   </tr>
                 ))}
                 {activos.length === 0 && (
-                  <tr><td colSpan={7} style={{...s.td, textAlign:'center', color:'#9ca3af', padding:24}}>
+                  <tr><td colSpan={8} style={{...s.td, textAlign:'center', color:'#9ca3af', padding:24}}>
                     Sin usuarios activos
                   </td></tr>
                 )}
@@ -253,7 +302,7 @@ export default function Usuarios() {
           <div style={{overflowX:'auto'}}>
             <table style={s.table}>
               <thead>
-                <tr>{['Nombre','Correo','País','Unidad','Rol','Acción'].map(h=>
+                <tr>{['Nombre','Correo','País','Unidad','Centro','Rol','Acción'].map(h=>
                   <th key={h} style={s.th}>{h}</th>
                 )}</tr>
               </thead>
@@ -264,6 +313,11 @@ export default function Usuarios() {
                     <td style={{...s.td, fontFamily:'monospace', fontSize:12}}>{u.email}</td>
                     <td style={s.td}>{FLAG[u.pais]||''} {u.pais}</td>
                     <td style={s.td}>{u.unidad_negocio}</td>
+                    <td style={s.td}>
+                      {u.centro
+                        ? <span style={{fontSize:11}}>{u.centro}</span>
+                        : <span style={{color:'#9ca3af'}}>—</span>}
+                    </td>
                     <td style={s.td}>{u.rol}</td>
                     <td style={s.td}>
                       <button style={s.btnAct}
@@ -283,28 +337,28 @@ export default function Usuarios() {
 }
 
 const s = {
-  wrap:       { padding:28, display:'flex', flexDirection:'column', gap:20 },
-  card:       { background:'#fff', border:'1px solid #e2e5ef', borderRadius:12, overflow:'hidden' },
-  ch:         { padding:'16px 24px', borderBottom:'1px solid #e2e5ef' },
-  ct:         { fontSize:15, fontWeight:700, color:'#0f1d3a', margin:0 },
-  cs:         { fontSize:12, color:'#6b7280', marginTop:4, display:'block' },
-  grid:       { display:'grid', gridTemplateColumns:'1fr 1fr', gap:16, marginBottom:8 },
-  field:      { display:'flex', flexDirection:'column', gap:6 },
-  label:      { fontSize:12, fontWeight:600, color:'#374151' },
-  input:      { padding:'10px 13px', border:'1.5px solid #e2e5ef', borderRadius:8, fontSize:14, outline:'none' },
-  select:     { padding:'10px 13px', border:'1.5px solid #e2e5ef', borderRadius:8, fontSize:14, outline:'none', background:'#fff' },
-  errorBox:   { background:'#fef2f2', border:'1px solid #fecaca', borderRadius:8, padding:'10px 14px', fontSize:13, color:'#dc2626', marginTop:12 },
-  okBox:      { background:'#f0fdf4', border:'1px solid #bbf7d0', borderRadius:8, padding:'10px 14px', fontSize:13, color:'#16a34a', marginTop:12 },
-  btnPri:     { padding:'10px 22px', background:'#2563eb', color:'#fff', border:'none', borderRadius:8, fontSize:14, fontWeight:700, cursor:'pointer' },
-  loading:    { padding:32, textAlign:'center', color:'#9ca3af' },
-  table:      { width:'100%', borderCollapse:'collapse' },
-  th:         { padding:'9px 14px', background:'#f5f6fa', fontSize:11, fontWeight:600, color:'#6b7280', textTransform:'uppercase', letterSpacing:'.6px', textAlign:'left', borderBottom:'1px solid #e2e5ef', whiteSpace:'nowrap' },
-  td:         { padding:'11px 14px', fontSize:13, color:'#374151', borderBottom:'1px solid #f0f2f8', verticalAlign:'middle' },
-  badgeAdmin: { fontSize:11, fontWeight:600, padding:'3px 9px', borderRadius:20, background:'#ede9fe', color:'#7c3aed', border:'1px solid #ddd6fe' },
+  wrap:            { padding:28, display:'flex', flexDirection:'column', gap:20 },
+  card:            { background:'#fff', border:'1px solid #e2e5ef', borderRadius:12, overflow:'hidden' },
+  ch:              { padding:'16px 24px', borderBottom:'1px solid #e2e5ef' },
+  ct:              { fontSize:15, fontWeight:700, color:'#0f1d3a', margin:0 },
+  cs:              { fontSize:12, color:'#6b7280', marginTop:4, display:'block' },
+  grid:            { display:'grid', gridTemplateColumns:'1fr 1fr', gap:16, marginBottom:8 },
+  field:           { display:'flex', flexDirection:'column', gap:6 },
+  label:           { fontSize:12, fontWeight:600, color:'#374151' },
+  input:           { padding:'10px 13px', border:'1.5px solid #e2e5ef', borderRadius:8, fontSize:14, outline:'none' },
+  select:          { padding:'10px 13px', border:'1.5px solid #e2e5ef', borderRadius:8, fontSize:14, outline:'none', background:'#fff' },
+  errorBox:        { background:'#fef2f2', border:'1px solid #fecaca', borderRadius:8, padding:'10px 14px', fontSize:13, color:'#dc2626', marginTop:12 },
+  okBox:           { background:'#f0fdf4', border:'1px solid #bbf7d0', borderRadius:8, padding:'10px 14px', fontSize:13, color:'#16a34a', marginTop:12 },
+  btnPri:          { padding:'10px 22px', background:'#2563eb', color:'#fff', border:'none', borderRadius:8, fontSize:14, fontWeight:700, cursor:'pointer' },
+  loading:         { padding:32, textAlign:'center', color:'#9ca3af' },
+  table:           { width:'100%', borderCollapse:'collapse' },
+  th:              { padding:'9px 14px', background:'#f5f6fa', fontSize:11, fontWeight:600, color:'#6b7280', textTransform:'uppercase', letterSpacing:'.6px', textAlign:'left', borderBottom:'1px solid #e2e5ef', whiteSpace:'nowrap' },
+  td:              { padding:'11px 14px', fontSize:13, color:'#374151', borderBottom:'1px solid #f0f2f8', verticalAlign:'middle' },
+  badgeAdmin:      { fontSize:11, fontWeight:600, padding:'3px 9px', borderRadius:20, background:'#ede9fe', color:'#7c3aed', border:'1px solid #ddd6fe' },
   badgeDataMaster: { fontSize:11, fontWeight:600, padding:'3px 9px', borderRadius:20, background:'#dcfce7', color:'#15803d', border:'1px solid #86efac' },
-  badgeGestor:{ fontSize:11, fontWeight:600, padding:'3px 9px', borderRadius:20, background:'#fef9c3', color:'#b45309', border:'1px solid #fde68a' },
-  badgeLider: { fontSize:11, fontWeight:600, padding:'3px 9px', borderRadius:20, background:'#dbeafe', color:'#1d4ed8', border:'1px solid #93c5fd' },
-  badgeSol:   { fontSize:11, fontWeight:600, padding:'3px 9px', borderRadius:20, background:'#eff4ff', color:'#2563eb', border:'1px solid #bfdbfe' },
-  btnDes:     { padding:'5px 12px', background:'#fef2f2', color:'#dc2626', border:'1px solid #fecaca', borderRadius:7, fontSize:12, fontWeight:600, cursor:'pointer' },
-  btnAct:     { padding:'5px 12px', background:'#f0fdf4', color:'#16a34a', border:'1px solid #bbf7d0', borderRadius:7, fontSize:12, fontWeight:600, cursor:'pointer' },
+  badgeGestor:     { fontSize:11, fontWeight:600, padding:'3px 9px', borderRadius:20, background:'#fef9c3', color:'#b45309', border:'1px solid #fde68a' },
+  badgeLider:      { fontSize:11, fontWeight:600, padding:'3px 9px', borderRadius:20, background:'#dbeafe', color:'#1d4ed8', border:'1px solid #93c5fd' },
+  badgeSol:        { fontSize:11, fontWeight:600, padding:'3px 9px', borderRadius:20, background:'#eff4ff', color:'#2563eb', border:'1px solid #bfdbfe' },
+  btnDes:          { padding:'5px 12px', background:'#fef2f2', color:'#dc2626', border:'1px solid #fecaca', borderRadius:7, fontSize:12, fontWeight:600, cursor:'pointer' },
+  btnAct:          { padding:'5px 12px', background:'#f0fdf4', color:'#16a34a', border:'1px solid #bbf7d0', borderRadius:7, fontSize:12, fontWeight:600, cursor:'pointer' },
 };
