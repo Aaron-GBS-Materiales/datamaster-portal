@@ -47,8 +47,9 @@ export default function Reportes() {
   const [filas, setFilas]             = useState([]);
   const [loading, setLoading]         = useState(true);
   const [filtro, setFiltro]           = useState('');
-  const [filtroEstado, setFiltroEstado] = useState('');
-  const [filtroUnidad, setFiltroUnidad] = useState('');
+  const [filtroSolicitante, setFiltroSolicitante] = useState('');
+const [filtroGestor, setFiltroGestor]           = useState('');
+const [filtroLider, setFiltroLider]             = useState('');
 
   useEffect(() => { load(); }, []);
 
@@ -139,16 +140,17 @@ export default function Reportes() {
   }
 
   const filasFiltradas = filas.filter(f => {
-    const textoMatch = !filtro || [
-      f.ticket, f.solicitante, f.denominacion, f.categoria, f.codigo
-    ].some(v => v?.toLowerCase().includes(filtro.toLowerCase()));
-    const estadoMatch = !filtroEstado || f.estado === filtroEstado;
-    const unidadMatch = !filtroUnidad || f.unidad_negocio === filtroUnidad;
-    return textoMatch && estadoMatch && unidadMatch;
-  });
+  const solMatch    = !filtroSolicitante || f.solicitante === filtroSolicitante;
+  const gestorMatch = !filtroGestor || f.gestor === filtroGestor;
+  const liderMatch  = !filtroLider || f.lider === filtroLider;
+  return solMatch && gestorMatch && liderMatch;
+});
 
   const estados  = [...new Set(filas.map(f => f.estado).filter(Boolean))];
   const unidades = [...new Set(filas.map(f => f.unidad_negocio).filter(v => v && v !== ''))];
+  const solicitantes = [...new Set(filas.map(f => f.solicitante).filter(Boolean))].sort();
+const gestores     = [...new Set(filas.map(f => f.gestor).filter(v => v && v !== '—'))].sort();
+const lideres      = [...new Set(filas.map(f => f.lider).filter(v => v && v !== '—'))].sort();
 
   function exportarExcel() {
     const encabezados = [
@@ -259,31 +261,50 @@ export default function Reportes() {
       </div>
 
       {/* Filtros */}
-      <div style={{display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:12, marginBottom:16}}>
-        <input
-          style={{padding:'9px 13px', border:'1.5px solid #e2e5ef', borderRadius:8,
-            fontSize:13, outline:'none', background:'#fff'}}
-          placeholder="🔍 Buscar ticket, solicitante, denominación…"
-          value={filtro}
-          onChange={e => setFiltro(e.target.value)}
-        />
-        <select
-          style={{padding:'9px 13px', border:'1.5px solid #e2e5ef', borderRadius:8,
-            fontSize:13, outline:'none', background:'#fff'}}
-          value={filtroEstado}
-          onChange={e => setFiltroEstado(e.target.value)}>
-          <option value="">Todos los estados</option>
-          {estados.map(e => <option key={e} value={e}>{e}</option>)}
-        </select>
-        <select
-          style={{padding:'9px 13px', border:'1.5px solid #e2e5ef', borderRadius:8,
-            fontSize:13, outline:'none', background:'#fff'}}
-          value={filtroUnidad}
-          onChange={e => setFiltroUnidad(e.target.value)}>
-          <option value="">Todas las unidades</option>
-          {unidades.map(u => <option key={u} value={u}>{u}</option>)}
-        </select>
-      </div>
+<div style={{display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:12, marginBottom:16}}>
+  <div>
+    <label style={{fontSize:11, fontWeight:600, color:'#6b7280', textTransform:'uppercase',
+      letterSpacing:'.5px', display:'block', marginBottom:6}}>
+      Solicitante
+    </label>
+    <select
+      style={{width:'100%', padding:'9px 13px', border:'1.5px solid #e2e5ef', borderRadius:8,
+        fontSize:13, outline:'none', background:'#fff'}}
+      value={filtroSolicitante}
+      onChange={e => setFiltroSolicitante(e.target.value)}>
+      <option value="">Todos los solicitantes</option>
+      {solicitantes.map(s => <option key={s} value={s}>{s}</option>)}
+    </select>
+  </div>
+  <div>
+    <label style={{fontSize:11, fontWeight:600, color:'#6b7280', textTransform:'uppercase',
+      letterSpacing:'.5px', display:'block', marginBottom:6}}>
+      Gestor
+    </label>
+    <select
+      style={{width:'100%', padding:'9px 13px', border:'1.5px solid #e2e5ef', borderRadius:8,
+        fontSize:13, outline:'none', background:'#fff'}}
+      value={filtroGestor}
+      onChange={e => setFiltroGestor(e.target.value)}>
+      <option value="">Todos los gestores</option>
+      {gestores.map(g => <option key={g} value={g}>{g}</option>)}
+    </select>
+  </div>
+  <div>
+    <label style={{fontSize:11, fontWeight:600, color:'#6b7280', textTransform:'uppercase',
+      letterSpacing:'.5px', display:'block', marginBottom:6}}>
+      Líder
+    </label>
+    <select
+      style={{width:'100%', padding:'9px 13px', border:'1.5px solid #e2e5ef', borderRadius:8,
+        fontSize:13, outline:'none', background:'#fff'}}
+      value={filtroLider}
+      onChange={e => setFiltroLider(e.target.value)}>
+      <option value="">Todos los líderes</option>
+      {lideres.map(l => <option key={l} value={l}>{l}</option>)}
+    </select>
+  </div>
+</div>
 
       {/* Tabla */}
       <div style={{background:'#fff', border:'1px solid #e2e5ef', borderRadius:12, overflow:'hidden'}}>
