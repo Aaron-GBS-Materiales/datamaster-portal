@@ -21,13 +21,20 @@ function tiempoTotal(inicio, fin) {
   return `${mins}m`;
 }
 
-function getEstadoLabel(paso, flujo, estado) {
-  if (estado === 'Rechazada') return 'Rechazada';
-  if (flujo === 'directo') {
-    if (paso >= 5) return 'Atendido';
-    return 'Creación Pendiente';
+function getEstadoPosicion(pos, sol) {
+  if (pos.estado === 'Rechazada') return 'Rechazada';
+  if (sol.paso === 5)             return 'Atendido';
+  if (pos.estado_lider === 'Aprobada') return 'Creación Pendiente';
+  if (pos.estado_gestor === 'Revisada') return 'Liberación Pendiente';
+  return 'Revisión Pendiente';
+}
+
+function getEstadoSolicitud(sol) {
+  if (sol.estado === 'Rechazada') return 'Rechazada';
+  if (sol.flujo === 'directo') {
+    return sol.paso >= 5 ? 'Atendido' : 'Creación Pendiente';
   }
-  switch (paso) {
+  switch (sol.paso) {
     case 1:
     case 2:  return 'Revisión Pendiente';
     case 3:  return 'Liberación Pendiente';
@@ -37,9 +44,9 @@ function getEstadoLabel(paso, flujo, estado) {
 }
 
 export default function Reportes() {
-  const [filas, setFilas]       = useState([]);
-  const [loading, setLoading]   = useState(true);
-  const [filtro, setFiltro]     = useState('');
+  const [filas, setFilas]             = useState([]);
+  const [loading, setLoading]         = useState(true);
+  const [filtro, setFiltro]           = useState('');
   const [filtroEstado, setFiltroEstado] = useState('');
   const [filtroUnidad, setFiltroUnidad] = useState('');
 
@@ -55,7 +62,6 @@ export default function Reportes() {
       const paso5 = await getSolicitudesPorPaso(5);
       const todas = [...paso1, ...paso2, ...paso3, ...paso4, ...paso5];
 
-      // Cache de nombres de gestores
       const emailsGestores = new Set();
       todas.forEach(s => { if (s.asignado_a) emailsGestores.add(s.asignado_a); });
       const nombresCache = {};
@@ -63,7 +69,6 @@ export default function Reportes() {
         nombresCache[email] = await getNombreUsuario(email);
       }));
 
-      // Expandir por posiciones
       const resultado = [];
       for (const sol of todas) {
         const posiciones = await getPosicionesBySolicitud(sol.id);
@@ -73,25 +78,26 @@ export default function Reportes() {
 
         if (posiciones.length === 0) {
           resultado.push({
-            ticket:          sol.ticket_id,
-            solicitante:     sol.nombre_solicitante,
-            pais:            sol.pais,
-            unidad_negocio:  sol.unidad_negocio,
-            gestor:          gestorNombre,
-            categoria:       '—',
-            codigo:          '—',
-            tipo_material:   '—',
-            grupo_articulos: '—',
-            denominacion:    '—',
-            texto_pedido:    '—',
-            fecha_solicitud: sol.fecha_recepcion,
-            fecha_revision:  '—',
-            fecha_liberacion:'—',
-            fecha_creacion:  sol.fecha_respuesta || null,
-            tiempo_total:    tiempoTotal(sol.fecha_recepcion, sol.fecha_respuesta),
-            estado:          getEstadoLabel(sol.paso, sol.flujo, sol.estado),
+            ticket:           sol.ticket_id,
+            solicitante:      sol.nombre_solicitante,
+            pais:             sol.pais,
+            unidad_negocio:   sol.unidad_negocio,
+            gestor:           gestorNombre,
+            categoria:        '—',
+            codigo:           '—',
+            tipo_material:    '—',
+            grupo_articulos:  '—',
+            denominacion:     '—',
+            texto_pedido:     '—',
+            fecha_solicitud:  sol.fecha_recepcion,
+            fecha_revision:   null,
+            fecha_liberacion: null,
+            fecha_creacion:   sol.fecha_respuesta || null,
+            tiempo_total:     tiempoTotal(sol.fecha_recepcion, sol.fecha_respuesta),
+            estado:           getEstadoSolicitud(sol),
             _esPrimeraPosicion: true,
-            _totalPosiciones: 0,
+            _totalPosiciones:   0,
+            _solicitudId:       sol.id,
           });
         } else {
           posiciones.forEach((pos, idx) => {
@@ -112,14 +118,14 @@ export default function Reportes() {
               denominacion:     pos.denominacion || '—',
               texto_pedido:     pos.texto_pedido || '—',
               fecha_solicitud:  idx === 0 ? sol.fecha_recepcion : null,
-              fecha_revision: pos.fecha_revision_gestor || null,
+              fecha_revision:   pos.fecha_revision_gestor || null,
               fecha_liberacion: pos.fecha_liberacion || null,
               fecha_creacion:   idx === 0 ? (sol.fecha_respuesta || null) : null,
               tiempo_total:     idx === 0 ? tiempoTotal(sol.fecha_recepcion, sol.fecha_respuesta) : '',
-              estado:           getEstadoLabel(sol.paso, sol.flujo, pos.estado || sol.estado),
+              estado:           getEstadoPosicion(pos, sol),
               _esPrimeraPosicion: idx === 0,
-              _totalPosiciones: posiciones.length,
-              _solicitudId: sol.id,
+              _totalPosiciones:   posiciones.length,
+              _solicitudId:       sol.id,
             });
           });
         }
@@ -132,11 +138,9 @@ export default function Reportes() {
     setLoading(false);
   }
 
-  // ── Filtros ──
   const filasFiltradas = filas.filter(f => {
-    const ticket = f.ticket || filas.find(x => x._solicitudId === f._solicitudId && x.ticket)?.ticket || '';
     const textoMatch = !filtro || [
-      ticket, f.solicitante, f.denominacion, f.categoria, f.codigo
+      f.ticket, f.solicitante, f.denominacion, f.categoria, f.codigo
     ].some(v => v?.toLowerCase().includes(filtro.toLowerCase()));
     const estadoMatch = !filtroEstado || f.estado === filtroEstado;
     const unidadMatch = !filtroUnidad || f.unidad_negocio === filtroUnidad;
@@ -146,7 +150,6 @@ export default function Reportes() {
   const estados  = [...new Set(filas.map(f => f.estado).filter(Boolean))];
   const unidades = [...new Set(filas.map(f => f.unidad_negocio).filter(v => v && v !== ''))];
 
-  // ── Exportar Excel ──
   function exportarExcel() {
     const encabezados = [
       'TICKET', 'SOLICITANTE', 'PAÍS', 'UNIDAD DE NEGOCIO', 'GESTOR',
@@ -157,7 +160,6 @@ export default function Reportes() {
       'TIEMPO TOTAL', 'ESTADO',
     ];
 
-    // Para Excel sí mostramos el ticket en cada fila
     let ticketActual = '';
     let solicitanteActual = '';
     let paisActual = '';
@@ -167,12 +169,12 @@ export default function Reportes() {
 
     const datos = filasFiltradas.map(f => {
       if (f.ticket) {
-        ticketActual        = f.ticket;
-        solicitanteActual   = f.solicitante;
-        paisActual          = f.pais;
-        unidadActual        = f.unidad_negocio;
+        ticketActual         = f.ticket;
+        solicitanteActual    = f.solicitante;
+        paisActual           = f.pais;
+        unidadActual         = f.unidad_negocio;
         fechaSolicitudActual = formatFecha(f.fecha_solicitud);
-        tiempoTotalActual   = f.tiempo_total;
+        tiempoTotalActual    = f.tiempo_total;
       }
       return [
         ticketActual,
@@ -196,15 +198,12 @@ export default function Reportes() {
     });
 
     const ws = XLSX.utils.aoa_to_sheet([encabezados, ...datos]);
-
-    // Ancho de columnas
     ws['!cols'] = [
       {wch:16},{wch:22},{wch:10},{wch:18},{wch:22},
       {wch:20},{wch:14},{wch:20},{wch:22},{wch:25},
       {wch:30},{wch:20},{wch:20},{wch:20},{wch:20},
       {wch:14},{wch:20},
     ];
-
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Reporte');
     XLSX.writeFile(wb, `Reporte_DataMaster_${new Date().toISOString().split('T')[0]}.xlsx`);
@@ -219,17 +218,17 @@ export default function Reportes() {
   ];
 
   const estadoColor = {
-    'Atendido':            { color:'#16a34a', bg:'#dcfce7' },
-    'Creación Pendiente':  { color:'#7c3aed', bg:'#ede9fe' },
-    'Liberación Pendiente':{ color:'#1d4ed8', bg:'#dbeafe' },
-    'Revisión Pendiente':  { color:'#b45309', bg:'#fef9c3' },
-    'Rechazada':           { color:'#dc2626', bg:'#fef2f2' },
+    'Atendido':             { color:'#16a34a', bg:'#dcfce7' },
+    'Creación Pendiente':   { color:'#7c3aed', bg:'#ede9fe' },
+    'Liberación Pendiente': { color:'#1d4ed8', bg:'#dbeafe' },
+    'Revisión Pendiente':   { color:'#b45309', bg:'#fef9c3' },
+    'Rechazada':            { color:'#dc2626', bg:'#fef2f2' },
   };
 
   return (
     <div style={{padding:28}}>
 
-      {/* ── Encabezado ── */}
+      {/* Encabezado */}
       <div style={{display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:20}}>
         <div>
           <h2 style={{fontSize:20, fontWeight:800, color:'#0f1d3a', margin:0}}>Reporte General</h2>
@@ -247,7 +246,7 @@ export default function Reportes() {
         </button>
       </div>
 
-      {/* ── Filtros ── */}
+      {/* Filtros */}
       <div style={{display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:12, marginBottom:16}}>
         <input
           style={{padding:'9px 13px', border:'1.5px solid #e2e5ef', borderRadius:8,
@@ -274,7 +273,7 @@ export default function Reportes() {
         </select>
       </div>
 
-      {/* ── Tabla ── */}
+      {/* Tabla */}
       <div style={{background:'#fff', border:'1px solid #e2e5ef', borderRadius:12, overflow:'hidden'}}>
         {loading ? (
           <div style={{padding:48, textAlign:'center', color:'#9ca3af'}}>Cargando reporte…</div>
@@ -289,8 +288,7 @@ export default function Reportes() {
                     <th key={h} style={{
                       padding:'9px 10px', background:'#f5f6fa', fontSize:10, fontWeight:700,
                       color:'#6b7280', textTransform:'uppercase', letterSpacing:'.5px',
-                      textAlign:'left', borderBottom:'1px solid #e2e5ef',
-                      whiteSpace:'nowrap',
+                      textAlign:'left', borderBottom:'1px solid #e2e5ef', whiteSpace:'nowrap',
                     }}>
                       {h}
                     </th>
@@ -304,9 +302,8 @@ export default function Reportes() {
                   return (
                     <tr key={idx} style={{
                       background: esNuevoTicket && idx > 0 ? '#fafbff' : '#fff',
-                      borderTop: esNuevoTicket && idx > 0 ? '2px solid #e2e5ef' : 'none',
+                      borderTop:  esNuevoTicket && idx > 0 ? '2px solid #e2e5ef' : 'none',
                     }}>
-                      {/* Ticket — solo primera posición */}
                       <td style={{padding:'9px 10px', fontSize:12, fontFamily:'monospace',
                         color:'#2563eb', fontWeight:700, whiteSpace:'nowrap',
                         borderBottom:'1px solid #f0f2f8'}}>
@@ -316,7 +313,8 @@ export default function Reportes() {
                       <td style={td}>{f.pais}</td>
                       <td style={{...td, fontSize:11}}>
                         {f.unidad_negocio
-                          ? <span style={{background:'#eff4ff', color:'#2563eb', padding:'2px 6px', borderRadius:6, fontWeight:600, fontSize:10}}>
+                          ? <span style={{background:'#eff4ff', color:'#2563eb', padding:'2px 6px',
+                              borderRadius:6, fontWeight:600, fontSize:10}}>
                               {f.unidad_negocio}
                             </span>
                           : ''}
@@ -324,7 +322,8 @@ export default function Reportes() {
                       <td style={{...td, fontSize:11}}>{f.gestor}</td>
                       <td style={{...td, fontSize:11}}>
                         {f.categoria !== '—'
-                          ? <span style={{background:'#ede9fe', color:'#7c3aed', padding:'2px 6px', borderRadius:6, fontWeight:600, fontSize:10}}>
+                          ? <span style={{background:'#ede9fe', color:'#7c3aed', padding:'2px 6px',
+                              borderRadius:6, fontWeight:600, fontSize:10}}>
                               {f.categoria}
                             </span>
                           : '—'}
@@ -334,12 +333,12 @@ export default function Reportes() {
                       </td>
                       <td style={{...td, fontSize:11}}>{f.tipo_material}</td>
                       <td style={{...td, fontSize:11}}>{f.grupo_articulos}</td>
-                      <td style={{...td, fontSize:11, maxWidth:160, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}
-                        title={f.denominacion}>
+                      <td style={{...td, fontSize:11, maxWidth:160, overflow:'hidden',
+                        textOverflow:'ellipsis', whiteSpace:'nowrap'}} title={f.denominacion}>
                         {f.denominacion}
                       </td>
-                      <td style={{...td, fontSize:11, maxWidth:160, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}
-                        title={f.texto_pedido}>
+                      <td style={{...td, fontSize:11, maxWidth:160, overflow:'hidden',
+                        textOverflow:'ellipsis', whiteSpace:'nowrap'}} title={f.texto_pedido}>
                         {f.texto_pedido}
                       </td>
                       <td style={{...td, fontSize:11, whiteSpace:'nowrap', color:'#374151'}}>
@@ -348,7 +347,9 @@ export default function Reportes() {
                       <td style={{...td, fontSize:11, whiteSpace:'nowrap', color:'#374151'}}>
                         {formatFecha(f.fecha_revision)}
                       </td>
-                      <td style={{...td, fontSize:11, whiteSpace:'nowrap', color:'#16a34a', fontWeight: f.fecha_liberacion ? 600 : 400}}>
+                      <td style={{...td, fontSize:11, whiteSpace:'nowrap',
+                        color: f.fecha_liberacion ? '#16a34a' : '#374151',
+                        fontWeight: f.fecha_liberacion ? 600 : 400}}>
                         {f.fecha_liberacion ? '✓ ' + formatFecha(f.fecha_liberacion) : '—'}
                       </td>
                       <td style={{...td, fontSize:11, whiteSpace:'nowrap', color:'#374151'}}>
