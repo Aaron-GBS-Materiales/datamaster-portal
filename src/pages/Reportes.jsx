@@ -210,11 +210,23 @@ export default function Reportes() {
   }
 
   const COLS = [
-  'Ticket', 'Solicitante', 'País', 'Unidad de Negocio',
-  'Fecha Solicitud', 'Tiempo Total',
-  'Gestor', 'Categoría', 'Código SAP', 'Tipo de Material',
-  'Grupo de Artículos', 'Denominación', 'Texto de Pedido',
-  'Fecha Revisión', 'Fecha Liberación', 'Fecha Creación', 'Estado',
+  'Ticket',
+  'Solicitante',
+  'País',
+  'Unidad de\nNegocio',
+  'Fecha y Hora\nde Solicitud',
+  'Tiempo\nTotal',
+  'Gestor',
+  'Categoría',
+  'Código\nSAP',
+  'Tipo de\nMaterial',
+  'Grupo de\nArtículos',
+  'Denominación',
+  'Texto de\nPedido',
+  'Fecha y Hora\nde Revisión',
+  'Fecha y Hora\nde Liberación',
+  'Fecha y Hora\nde Creación',
+  'Estado',
 ];
 
   const estadoColor = {
@@ -283,18 +295,19 @@ export default function Reportes() {
           <div style={{overflowX:'auto', maxHeight:'65vh', overflowY:'auto'}}>
             <table style={{width:'100%', borderCollapse:'collapse'}}>
               <thead style={{position:'sticky', top:0, zIndex:10}}>
-                <tr>
-                  {COLS.map(h => (
-                    <th key={h} style={{
-                      padding:'9px 10px', background:'#f5f6fa', fontSize:10, fontWeight:700,
-                      color:'#6b7280', textTransform:'uppercase', letterSpacing:'.5px',
-                      textAlign:'left', borderBottom:'1px solid #e2e5ef', whiteSpace:'nowrap',
-                    }}>
-                      {h}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
+  <tr>
+    {COLS.map(h => (
+      <th key={h} style={{
+        padding:'9px 10px', background:'#f5f6fa', fontSize:10, fontWeight:700,
+        color:'#6b7280', textTransform:'uppercase', letterSpacing:'.5px',
+        textAlign:'left', borderBottom:'1px solid #e2e5ef',
+        whiteSpace:'pre-line', lineHeight:1.4, minWidth:70,
+      }}>
+        {h}
+      </th>
+    ))}
+  </tr>
+</thead>
               <tbody>
   {(() => {
     // Agrupar filas por solicitud para calcular rowSpan
