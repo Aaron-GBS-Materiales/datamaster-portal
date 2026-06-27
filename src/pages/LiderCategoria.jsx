@@ -177,6 +177,7 @@ export default function LiderCategoria({ soloHistorial = false }) {
             estado:           'Aprobada',
             estado_lider:     'Aprobada',
             fecha_liberacion: new Date().toISOString(),
+            aprobado_lider: user.email,       
           })
         )
       );
